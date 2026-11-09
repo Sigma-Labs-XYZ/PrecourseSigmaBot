@@ -172,7 +172,7 @@ describe("boot work", () => {
       const locations = yield* LocationServiceMap.Service
       const session = yield* sessions.create({
         location: { directory: AbsolutePath.make(tmp.path) },
-        agent: Agent.ID.make("build"),
+        agent: Agent.defaultID,
         model: Model.Ref.make({ id: Model.ID.make("boot"), providerID: Provider.ID.make("test") }),
       })
       const location = locations.get(session.location)

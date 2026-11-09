@@ -32,7 +32,7 @@ export function DialogFreeModels(props: {
           value,
           title: model.name,
           footer: isFavorite(value) ? <FavoriteMarker /> : undefined,
-          detail: () => <ModelDetail model={model} price={false} />,
+          detail: () => <ModelDetail model={model} />,
           onSelect: () => props.onSelect(model.providerID, model.id),
         }
       })

@@ -185,7 +185,10 @@ test.each(["first", "second"])(
       run({
         app: { name: "test", version: "test", channel: "test" },
         server: { endpoint: { url: server.url.toString() } },
-        config: { get: async () => ({ animations: false }), update: async () => ({}) },
+        config: {
+          get: async () => ({ animations: false, keybinds: { "model.list": "f8" } }),
+          update: async () => ({}),
+        },
         packages: { prepare: async () => ({ directory: "" }) },
         terminalHandoff: async () => ({ renderer: setup.renderer, mode: "dark", complete: ready.resolve }),
         args: { sessionID },
@@ -193,8 +196,7 @@ test.each(["first", "second"])(
       }).pipe(Effect.provide(Global.layerWith({ state: state.path })), Effect.provide(FileSystem.layerNoop({}))),
     )
     const selectModel = async (id: string) => {
-      await setup.mockInput.typeText("/models")
-      setup.mockInput.pressEnter()
+      setup.mockInput.pressKey("F8")
       await setup.waitForFrame(
         (frame) => frame.includes("Select model") && setup.renderer.currentFocusedRenderable instanceof InputRenderable,
       )

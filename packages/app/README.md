@@ -71,22 +71,11 @@ Environment options:
 
 ## Deployment
 
-The `deploy` GitHub Actions workflow uses SST to deploy the web app to `beta.opencode.ai` on every push to the
-`beta` branch in `anomalyco/opencode`. The `dev` and `production` stages do not deploy the web app.
-
-`beta` is the team's dogfooding branch: `dev` merged in by hand, plus commits pushed directly to it. Do not rebase or
-force-push it. Each push also runs the `release` workflow, which ships the same commit as the OpenCode Beta desktop app
-(see `packages/desktop/README.md`).
-
-The beta SST stage deploys only the web app, using the `WebApp` StaticSiteV2 definition in `infra/webapp.ts`. It sets
-the build channel and Sentry environment to `beta` without deploying the API, console, database, or billing
-infrastructure.
-
 `VITE_OPENCODE_SERVER_MODE` controls which server the web build provides at startup:
 
 | Mode               | Initial server                                                                       |
 | ------------------ | ------------------------------------------------------------------------------------ |
-| `none`             | No initial server. The beta deployment uses this mode.                               |
+| `none`             | No initial server.                                                                   |
 | `origin` (default) | The current page's origin. CLI builds explicitly use this mode for `opencode serve`. |
 
 In Vite development mode, `origin` uses `VITE_OPENCODE_SERVER_HOST` / `VITE_OPENCODE_SERVER_PORT`

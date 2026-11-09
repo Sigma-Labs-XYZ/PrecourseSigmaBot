@@ -56,15 +56,15 @@ describe("command subagents", () => {
     {
       name: "native JSON",
       format: "json",
-      command: { subagent: true, agent: "build", model: "test/override" },
-      agent: "build",
+      command: { subagent: true, agent: Agent.defaultID, model: "test/override" },
+      agent: Agent.defaultID,
       model: "override",
     },
     {
       name: "legacy Markdown",
       format: "markdown",
-      command: { subtask: true, agent: "build" },
-      agent: "build",
+      command: { subtask: true, agent: Agent.defaultID },
+      agent: Agent.defaultID,
       model: "parent",
     },
     {
@@ -90,7 +90,7 @@ describe("command subagents", () => {
         const child = children[0]
         if (!child) return yield* Effect.die("Expected a child session")
         expect(child).toMatchObject({ agent: fixture.agent, model: { id: fixture.model }, title: "Review code" })
-        expect(yield* sessions.get(parent.id)).toMatchObject({ agent: "build", model: parentModel })
+        expect(yield* sessions.get(parent.id)).toMatchObject({ agent: Agent.defaultID, model: parentModel })
         expect(yield* sessions.context(parent.id)).toEqual([])
         expect(yield* llm.requests()).toHaveLength(1)
         expect((yield* sessions.context(child.id)).filter((message) => message.type === "user")).toMatchObject([
@@ -157,7 +157,7 @@ function project(
     return yield* sessions.create({
       location: { directory: AbsolutePath.make(tmp.path) },
       title: "Parent session",
-      agent: Agent.ID.make("build"),
+      agent: Agent.defaultID,
       model: parentModel,
     })
   })

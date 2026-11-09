@@ -86,7 +86,7 @@ export async function resolveRunTuiConfig(
 
 export function resolveMiniSettings(config?: { mini?: Partial<MiniSettings> }): MiniSettings {
   return {
-    thinking: config?.mini?.thinking ?? "show",
+    thinking: config?.mini?.thinking ?? "hide",
     tools: config?.mini?.tools ?? "hide",
     shell_output: config?.mini?.shell_output ?? "hide",
     turn_summary: config?.mini?.turn_summary ?? "show",

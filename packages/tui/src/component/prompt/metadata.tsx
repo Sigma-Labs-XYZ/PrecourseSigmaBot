@@ -1,4 +1,4 @@
-import { RGBA, TextAttributes } from "@opentui/core"
+import { RGBA } from "@opentui/core"
 import { useTerminalDimensions } from "@opentui/solid"
 import { createMemo, Show } from "solid-js"
 import { useTheme } from "../../context/theme"
@@ -10,15 +10,10 @@ export function PromptMetadataRow(props: {
   agent?: string
   auto: boolean
   model: string
-  provider: string
-  variant?: string
-  /** What the workspace's limits leave for the model, once it is running low. */
-  limit?: { readonly text: string; readonly danger: boolean }
   muted: boolean
   highlight: RGBA
   agentAlpha: number
   modelAlpha: number
-  variantAlpha: number
 }) {
   const theme = useTheme()
   const dimensions = useTerminalDimensions()
@@ -30,9 +25,6 @@ export function PromptMetadataRow(props: {
       agent: props.agent ?? "",
       auto: props.auto,
       model: props.model,
-      provider: props.provider,
-      variant: props.variant,
-      limit: props.limit?.text,
     })
   })
 
@@ -62,38 +54,6 @@ export function PromptMetadataRow(props: {
             >
               {layout().model}
             </text>
-            <Show when={layout().provider}>
-              {(provider) => (
-                <text flexShrink={0} fg={fade(theme.text.muted, props.modelAlpha)}>
-                  {provider()}
-                </text>
-              )}
-            </Show>
-            <Show when={layout().variant}>
-              {(variant) => (
-                <>
-                  <text fg={fade(theme.text.muted, props.variantAlpha)}>·</text>
-                  <text
-                    fg={fade(theme.text.feedback.warning.base, props.variantAlpha)}
-                    attributes={TextAttributes.BOLD}
-                  >
-                    {variant()}
-                  </text>
-                </>
-              )}
-            </Show>
-            <Show when={layout().limit ? props.limit : undefined}>
-              {(limit) => (
-                <text
-                  flexShrink={0}
-                  marginLeft={1}
-                  wrapMode="none"
-                  fg={fade(limit().danger ? theme.text.feedback.error.base : theme.text.muted, props.modelAlpha)}
-                >
-                  {limit().text}
-                </text>
-              )}
-            </Show>
           </box>
         </Show>
       </Show>
@@ -109,9 +69,6 @@ type Layout = {
   agent?: string
   auto?: boolean
   model: string
-  provider?: string
-  variant?: string
-  limit?: string
 }
 
 function promptMetadataLayout(input: {
@@ -120,38 +77,19 @@ function promptMetadataLayout(input: {
   agent: string
   auto?: boolean
   model: string
-  provider: string
-  variant?: string
-  limit?: string
 }) {
   const agent = input.terminalWidth < 44 ? undefined : input.agent
-  const provider = input.terminalWidth < 44 ? "" : input.provider
-  const limit = input.limit
   const candidates: Layout[] = [
-    { agent, auto: input.auto, model: input.model, provider, variant: input.variant, limit },
-    { agent, model: input.model, provider, variant: input.variant, limit },
-    {
-      agent,
-      model: input.model,
-      provider: provider.split(" / ").at(-1) ?? provider,
-      variant: input.variant,
-      limit,
-    },
-    { agent, model: input.model, variant: input.variant, limit },
+    { agent, auto: input.auto, model: input.model },
+    { agent, model: input.model },
   ]
   const fit = candidates.find((candidate) => stringWidth(text(candidate)) <= input.width)
   if (fit) return fit
 
   const prefix = agent ? `${agent} · ` : ""
-  const suffix = `${input.variant ? ` · ${input.variant}` : ""}${limit ? `  ${limit}` : ""}`
   return {
     agent,
-    model: Locale.truncateWidth(
-      input.model,
-      Math.max(9, input.width - stringWidth(prefix) - stringWidth(suffix)),
-    ).replace(/\s+…$/, "…"),
-    variant: input.variant,
-    limit,
+    model: Locale.truncateWidth(input.model, Math.max(9, input.width - stringWidth(prefix))).replace(/\s+…$/, "…"),
   }
 }
 
@@ -160,8 +98,5 @@ function text(input: Layout) {
     ...(input.agent ? [input.agent] : []),
     ...(input.auto ? ["auto"] : []),
     ...(input.model ? [...(input.agent ? ["·"] : []), input.model] : []),
-    ...(input.provider ? [input.provider] : []),
-    ...(input.variant ? ["·", input.variant] : []),
-    ...(input.limit ? [` ${input.limit}`] : []),
   ].join(" ")
 }

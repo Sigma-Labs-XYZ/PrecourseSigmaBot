@@ -809,7 +809,7 @@ test("lists slash commands in their built-in order", async ({ page }) => {
       { name: "init", description: "Create AGENTS.md" },
       { name: "review", description: "Review changes" },
     ],
-    // A sent message enables /undo, /compact and /fork.
+    // A sent message enables /undo and /compact.
     pageMessages: () => ({ items: [{ id: "msg_slash", type: "user", text: "Hello", time: { created: T0 } }] }),
   })
 
@@ -820,7 +820,6 @@ test("lists slash commands in their built-in order", async ({ page }) => {
     "/new",
     "/undo",
     "/compact",
-    "/fork",
     "/export",
     "/open",
     "/terminal",

@@ -1,11 +1,9 @@
 import { createMemo, createSignal, For, Match, Show, Switch } from "solid-js"
-import { RGBA, type Renderable } from "@opentui/core"
+import { type Renderable } from "@opentui/core"
 import { useRenderer, type JSX } from "@opentui/solid"
 import type { SessionMessageAssistantTool, SessionMessageInfo } from "@opencode/client"
 import { createSyntaxStyleMemo, useTheme, useThemes } from "../../context/theme"
-import { reasoningSummary } from "../../context/thinking"
 import { SplitBorder } from "../../ui/border"
-import { Locale } from "../../util/locale"
 import { EntryAnchor, GroupAnchor, visitEntries } from "./anchor-view"
 import { groupID } from "./anchors"
 import { instructionPaths, type PartRef, type SessionEntry, type SessionGroup, type SessionNode } from "./grouping/session"
@@ -92,21 +90,6 @@ function GroupContent(props: GroupProps) {
           return part?.type === "tool" ? [part] : []
         }),
   )
-  const latest = createMemo((previous: string | null) => {
-    const item = thoughts().at(-1)
-    if (!item) return previous
-    const title = reasoningSummary(reasoningContent(item.part)).title
-    if (title) return title
-    if (item.part.time?.completed !== undefined || item.message.time.completed !== undefined) return null
-    return previous
-  }, null)
-  const duration = createMemo(() =>
-    thoughts().reduce((total, item) => {
-      const start = item.part.time?.created
-      const end = item.part.time?.completed
-      return total + (start === undefined || end === undefined ? 0 : Math.max(0, end - start))
-    }, 0),
-  )
   const grouped = () => (props.node.kind === "reasoning" ? ctx.thinkingMode() === "hide" : ctx.groupExploration())
   const completed = () =>
     props.node.kind === "reasoning"
@@ -134,7 +117,7 @@ function GroupContent(props: GroupProps) {
   return (
     <GroupAnchor
       groupID={id()}
-      active={grouped() && (props.node.kind === "reasoning" ? thoughts().length > 0 : tools().length > 0)}
+      active={props.node.kind === "reasoning" ? false : grouped() && tools().length > 0}
     >
       <Show
         when={props.node.kind === "reasoning"}
@@ -159,39 +142,7 @@ function GroupContent(props: GroupProps) {
           </Show>
         }
       >
-        <Show when={thoughts().length > 0}>
-          <Show when={grouped()} fallback={children("normal")}>
-            <InlineToolRow
-              icon={expanded() ? "-" : "+"}
-              color={
-                !props.completed
-                  ? theme.text.base
-                  : hover() || expanded()
-                    ? theme.text.feedback.warning.base
-                    : RGBA.fromValues(
-                        theme.text.feedback.warning.base.r,
-                        theme.text.feedback.warning.base.g,
-                        theme.text.feedback.warning.base.b,
-                        0.6,
-                      )
-              }
-              complete={props.completed}
-              pending={latest() ? `Thinking: ${latest()}` : "Thinking"}
-              spinner={!props.completed}
-              onMouseOver={() => setHover(true)}
-              onMouseOut={() => setHover(false)}
-              onMouseUp={toggle}
-            >
-              {props.completed ? "Thought" : latest() ? `Thinking: ${latest()}` : "Thinking"}
-              <Show when={props.completed && !expanded() && latest()}>: {latest()}</Show>
-              <Show when={props.completed && thoughts().length > 1}> · {thoughts().length} steps</Show>
-              <Show when={props.completed && duration()}> · {Locale.duration(duration())}</Show>
-            </InlineToolRow>
-            <Show when={expanded()}>
-              <box paddingLeft={3}>{children("thought")}</box>
-            </Show>
-          </Show>
-        </Show>
+        <Show when={thoughts().length > 0 && !grouped()}>{children("normal")}</Show>
       </Show>
       <PendingEntries {...props} entries={entries()} />
     </GroupAnchor>

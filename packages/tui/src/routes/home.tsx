@@ -18,7 +18,28 @@ import { FadeInText } from "../component/fade-in-text"
 
 let once = false
 const placeholder = {
-  normal: ["Fix a TODO in the codebase", "What is the tech stack of this project?", "Fix broken tests"],
+  normal: [
+    "Explain what a variable is with a simple example",
+    "Help me write my first function",
+    "Why am I getting this error message?",
+    "Explain the difference between a list and an object",
+    "Quiz me on programming basics",
+    "Walk me through how a for loop works",
+    "Build a small to-do list app with me",
+    "Review my code and suggest improvements",
+    "What does this line of code do?",
+    "Explain what an API is in plain English",
+    "Help me debug my program step by step",
+    "How do I read and write a file?",
+    "Teach me how git and GitHub work",
+    "Explain async and await like I'm new to it",
+    "Give me a beginner project idea to practise",
+    "Explain what an if statement does with an example",
+    "Help me understand how recursion works",
+    "Explain what the terminal is and basic commands",
+    "Help me write my first test",
+    "Which programming language should I learn first, and why?",
+  ],
   shell: ["ls -la", "git status", "pwd"],
 }
 

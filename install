@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-APP=opencode
+APP=sigmabot
 SOURCE_APP=opencode
 
 MUTED='\033[0;2m'
@@ -23,7 +23,7 @@ Options:
 Examples:
     curl -fsSL https://opencode.ai/v2/install | bash
     curl -fsSL https://opencode.ai/v2/install | bash -s -- --version 0.0.0-beta-17236
-    ./install --binary /path/to/opencode
+    ./install --binary /path/to/opencode-binary
 EOF
 }
 
@@ -340,6 +340,10 @@ install_from_binary() {
     esac
     cp "$binary_path" "$INSTALL_DIR/$installed_binary"
     chmod 755 "$INSTALL_DIR/$installed_binary"
+    # macOS kills a copied binary whose ad-hoc signature is stale.
+    if [ "$(uname -s)" = "Darwin" ]; then
+        codesign --force --sign - "$INSTALL_DIR/$installed_binary"
+    fi
 }
 
 install_legacy_shim() {
@@ -353,14 +357,14 @@ install_legacy_shim() {
     if [[ "$shim_os" == "windows" ]]; then
         cat > "$INSTALL_DIR/opencode2.cmd" <<'EOF'
 @echo off
-"%~dp0opencode.exe" %*
+"%~dp0sigmabot.exe" %*
 exit /b %errorlevel%
 EOF
         return
     fi
     cat > "$INSTALL_DIR/opencode2" <<'EOF'
 #!/bin/sh
-exec "$(dirname "$0")/opencode" "$@"
+exec "$(dirname "$0")/sigmabot" "$@"
 EOF
     chmod 755 "$INSTALL_DIR/opencode2"
 }
@@ -485,7 +489,7 @@ if [[ $path_added == "true" ]]; then
     echo -e "exec \$SHELL   ${MUTED}# Reload PATH (or open a new terminal)${NC}"
 fi
 echo -e "cd <project>  ${MUTED}# Open directory${NC}"
-echo -e "opencode      ${MUTED}# Run command${NC}"
+echo -e "sigmabot      ${MUTED}# Run command${NC}"
 echo -e ""
 echo -e "${MUTED}For more information visit ${NC}https://opencode.ai/v2/docs"
 echo -e ""

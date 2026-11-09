@@ -70,7 +70,6 @@ import { directoryRecentValue } from "../../prompt/directory-completion"
 import { useWorkingDirectoryActions } from "../../ui/working-directory-actions"
 import { truncateFilePath } from "../../ui/file-path"
 import { PromptMetadataRow } from "./metadata"
-import { limitLabel, useUsageLimits } from "../usage"
 
 export type PromptProps = {
   sessionID?: string
@@ -158,17 +157,20 @@ function getEditorRangeLabel(selection: EditorSelection["ranges"][number]) {
   return `#${selection.selection.start.line}-${selection.selection.end.line}`
 }
 
-function formatEditorContext(selection: EditorSelection) {
+export function formatEditorContext(selection: EditorSelection) {
   const selected = selection.ranges.filter(hasEditorRangeSelection)
+  const open = selection.openFiles?.length
+    ? ` The user has these files open in their editor: ${selection.openFiles.map((file) => `"${file}"`).join(", ")}.`
+    : ""
   if (selected.length === 0)
-    return `<system-reminder>Note: The user opened the file "${selection.filePath}". This may or may not be relevant to the current task.</system-reminder>\n`
+    return `<system-reminder>Note: The user opened the file "${selection.filePath}".${open} This may or may not be relevant to the current task.</system-reminder>\n`
 
   const ranges = selected.map((range, index) => {
     const prefix = selected.length > 1 ? `Selection ${index + 1}: ` : ""
     return `Note: The user selected ${prefix}${getEditorRangeLabel(range)} from "${selection.filePath}". \`\`\`${range.text}\`\`\`\n\n`
   })
 
-  return `<system-reminder>${ranges.join("\n")} This may or may not be relevant to the current task.</system-reminder>\n`
+  return `<system-reminder>${ranges.join("\n")}${open} This may or may not be relevant to the current task.</system-reminder>\n`
 }
 
 function argumentSlash(input: string, commands: readonly KeymapCommand[]) {
@@ -230,6 +232,10 @@ export function Prompt(props: PromptProps) {
     return editorSelectionKey(selection) === dismissedEditorSelectionKey() ? undefined : selection
   })
   const editorPath = createMemo(() => editorContext()?.filePath)
+  const openFilesLabel = () => {
+    const others = (editorContext()?.openFiles?.length ?? 0) - 1
+    return others > 0 ? ` +${others} open` : ""
+  }
   const editorSelectionLabel = createMemo(() => {
     const ranges = editorContext()?.ranges
     if (!ranges) return
@@ -246,7 +252,7 @@ export function Prompt(props: PromptProps) {
     const file = /^index\.[^./]+$/.test(filename)
       ? [path.basename(path.dirname(value)), filename].filter(Boolean).join("/")
       : filename
-    return `${file.split(path.sep).join("/")}${editorSelectionLabel() ?? ""}`
+    return `${file.split(path.sep).join("/")}${editorSelectionLabel() ?? ""}${openFilesLabel()}`
   })
   const editorFileLabelDisplay = createMemo(() => {
     const file = editorFileLabel()
@@ -551,7 +557,6 @@ export function Prompt(props: PromptProps) {
         title: "Open editor",
         category: "Session",
         name: "prompt.editor",
-        slash: { name: "editor" },
         run: async () => {
           dialog.clear()
 
@@ -624,7 +629,6 @@ export function Prompt(props: PromptProps) {
         desc: "Manage workspaces",
         name: "session.move",
         category: "Session",
-        slash: { name: "worktrees" },
         run: () => {
           move.open()
         },
@@ -1539,9 +1543,6 @@ export function Prompt(props: PromptProps) {
   const promptDisplay = createMemo<{
     agentLabel: string | undefined
     agentColor: RGBA | undefined
-    modelLabel: string
-    providerLabel: string
-    variant: string | undefined
   }>(
     (previous) => {
       const location = currentLocation.ref ?? data.location.default()
@@ -1554,37 +1555,16 @@ export function Prompt(props: PromptProps) {
       if (loading && !failed) return previous
 
       const agent = local.agent.current()
-      const model = local.model.parsed()
       return {
         agentLabel: agent ? Locale.titlecase(agent.id) : undefined,
         agentColor: agent ? local.agent.color(agent.id) : undefined,
-        modelLabel: model.model,
-        providerLabel: model.provider,
-        variant: local.model.variant.current(),
       }
     },
     {
       agentLabel: undefined,
       agentColor: undefined,
-      modelLabel: local.model.parsed().model,
-      providerLabel: local.model.parsed().provider,
-      variant: undefined,
     },
   )
-  // What the workspace's limits leave for the selected model, once it is running low. Only OpenCode Console limits
-  // models, so only a model it serves loads them.
-  const limits = useUsageLimits()
-  createEffect(() => {
-    const selected = local.model.current()
-    if (selected && limits.served(selected.providerID) && limits.info() === undefined) limits.load()
-  })
-  const limit = createMemo(() => {
-    const selected = local.model.current()
-    const model = limits
-      .models()
-      .find((item) => item.providerID === selected?.providerID && item.id === selected?.modelID)
-    return model ? limitLabel(limits.usage(model), model) : undefined
-  })
   const highlight = createMemo(() => {
     if (muted()) return theme.border.base
     if (store.mode === "shell") return theme.text.action.primary.selected
@@ -1596,10 +1576,6 @@ export function Prompt(props: PromptProps) {
   const agentMetaAlpha = createFadeIn(() => !!agentLabel(), metadataAnimationsEnabled)
   const modelMetaAlpha = createFadeIn(
     () => !!promptDisplay().agentLabel && store.mode === "normal",
-    metadataAnimationsEnabled,
-  )
-  const variantMetaAlpha = createFadeIn(
-    () => !!promptDisplay().agentLabel && store.mode === "normal" && !!promptDisplay().variant,
     metadataAnimationsEnabled,
   )
   createEffect(() => {
@@ -1857,15 +1833,11 @@ export function Prompt(props: PromptProps) {
                 mode={store.mode}
                 agent={agentLabel()}
                 auto={local.permission.mode === "autoaccept"}
-                model={promptDisplay().modelLabel}
-                provider={promptDisplay().providerLabel}
-                variant={promptDisplay().variant}
-                limit={limit()}
+                model=""
                 muted={!!muted()}
                 highlight={highlight()}
                 agentAlpha={agentMetaAlpha()}
                 modelAlpha={modelMetaAlpha()}
-                variantAlpha={variantMetaAlpha()}
               />
             </box>
           </box>

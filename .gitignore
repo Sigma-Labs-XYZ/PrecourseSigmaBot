@@ -13,6 +13,7 @@ tmp
 dist
 dist-node
 ts-dist
+*.vsix
 .turbo
 .typecheck-profiles
 **/.serena

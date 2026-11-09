@@ -1316,7 +1316,6 @@ function Commands(props: { context: Plugin.Context }) {
       {
         id: "diff.open",
         title: "Open diff viewer",
-        slash: { name: "diff" },
         group: "VCS",
         palette: true,
         run() {

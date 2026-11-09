@@ -24,7 +24,7 @@ on:
         required: false
         type: string
       release_notes:
-        description: "Reviewed V2 release notes for CHANGELOG.md and the GitHub release (optional)"
+        description: "Reviewed V2 release notes for the GitHub release (optional)"
         required: false
         type: string
 

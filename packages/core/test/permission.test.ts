@@ -183,7 +183,7 @@ describe("Permission", () => {
         .pipe(Effect.orDie)
       const agents = yield* Agent.Service
       yield* agents.transform((editor) =>
-        editor.update(Agent.ID.make("build"), (agent) => {
+        editor.update(Agent.defaultID, (agent) => {
           agent.permissions = [{ action: "custom", resource: "*", effect: "allow" }]
         }),
       )

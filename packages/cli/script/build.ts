@@ -27,6 +27,10 @@ process.chdir(dir)
 
 await rm(outdir, { recursive: true, force: true })
 
+const openRouterKey = process.env.SIGMABOT_OPENROUTER_KEY
+if (!openRouterKey) throw new Error("SIGMABOT_OPENROUTER_KEY must be set to embed the OpenRouter key")
+// Optional until the course ships encrypted rubrics.
+const rubricKey = process.env.SIGMABOT_RUBRIC_KEY
 const singleFlag = process.argv.includes("--single")
 const baselineFlag = process.argv.includes("--baseline")
 const requestedTarget = process.env.OPENCODE_TARGET
@@ -194,7 +198,9 @@ export default { path: file, version: ${JSON.stringify(opencodePty.version)}, sh
     },
     define: {
       OPENCODE_VERSION: `'${Script.version}'`,
-      OPENCODE_CLI_NAME: "'opencode'",
+      OPENCODE_CLI_NAME: "'sigmabot'",
+      SIGMABOT_OPENROUTER_KEY: JSON.stringify(openRouterKey),
+      SIGMABOT_RUBRIC_KEY: rubricKey ? JSON.stringify(rubricKey) : "undefined",
       OPENCODE_CHANNEL: `'${Script.channel}'`,
       OPENCODE_ARTIFACT: `'cli'`,
       ...(highlights ? { OPENCODE_RELEASE_HIGHLIGHTS: JSON.stringify(highlights) } : {}),

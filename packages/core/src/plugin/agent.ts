@@ -3,18 +3,142 @@ export * as AgentPlugin from "./agent.js"
 import { define } from "@opencode/plugin/effect/plugin"
 import { Effect } from "effect"
 import { Agent } from "../agent.js"
+import PROMPT_EXPLAINER from "./agent/explainer.txt"
+import PROMPT_GRADER from "./agent/grader.txt"
+import PROMPT_IT_SUPPORT from "./agent/it-support.txt"
+import PROMPT_QUIZMASTER from "./agent/quizmaster.txt"
+import PROMPT_RESEARCHER from "./agent/researcher.txt"
+import PROMPT_REVIEWER from "./agent/reviewer.txt"
+import PROMPT_TUTOR from "./agent/tutor.txt"
+import PROMPT_UPDATER from "./agent/updater.txt"
 
-const PROMPT_EXPLORE = `You are a file search specialist. You excel at thoroughly navigating and exploring codebases.
+// Shell may run and inspect, but redirects, file mutation, git state changes and installs are denied.
+// This is a deny-list on command text, so it narrows rather than sandboxes what a shell command can write.
+const MUTATING_SHELL = [
+  "*>*",
+  "rm *",
+  "mv *",
+  "cp *",
+  "mkdir *",
+  "rmdir *",
+  "touch *",
+  "ln *",
+  "chmod *",
+  "chown *",
+  "truncate *",
+  "dd *",
+  "tee *",
+  "* | tee *",
+  "patch *",
+  "sed *-i*",
+  "perl *-i*",
+  "git add *",
+  "git commit*",
+  "git checkout *",
+  "git switch *",
+  "git restore *",
+  "git reset *",
+  "git clean *",
+  "git stash *",
+  "git merge *",
+  "git rebase *",
+  "git cherry-pick *",
+  "git apply *",
+  "git pull*",
+  "git rm *",
+  "git mv *",
+  "git push*",
+  "bun add *",
+  "bun install*",
+  "bun remove *",
+  "npm install*",
+  "npm uninstall*",
+  "pip install*",
+]
 
-Guidelines:
-- Your role is EXCLUSIVELY to search and analyze
-- Parallelize independent tool calls for searches and reads whenever possible
-- Adapt your search approach based on the thoroughness level specified by the caller
-- Return file paths as absolute paths in your final response
-- You MUST NOT create, modify, delete, move, or copy files, including temporary files and reports
-- Shell commands MUST be read-only. NEVER run commands that write files or change system state
+const readOnly: Agent.Info["permissions"] = [
+  { action: "edit", resource: "*", effect: "deny" },
+  { action: "shell", resource: "*", effect: "allow" },
+  ...MUTATING_SHELL.map((resource) => ({ action: "shell", resource, effect: "deny" as const })),
+]
 
-Complete the user's search request efficiently and report your findings clearly.`
+// The updater finishes a conflicted /update merge, so it is the one agent that may edit files. Its shell is an
+// allow-list of the git commands that inspect, stage and commit a merge; everything else is denied.
+const MERGE_SHELL = [
+  "git status*",
+  "git diff*",
+  "git log*",
+  "git show*",
+  "git ls-files*",
+  "git checkout --ours *",
+  "git checkout --theirs *",
+  "git add *",
+  "git rm *",
+  "git commit*",
+  "git merge --continue*",
+]
+
+const mergeOnly: Agent.Info["permissions"] = [
+  { action: "edit", resource: "*", effect: "allow" },
+  { action: "shell", resource: "*", effect: "deny" },
+  ...MERGE_SHELL.map((resource) => ({ action: "shell", resource, effect: "allow" as const })),
+]
+
+// The grader follows each rubric's marking steps: it runs the trainee's scripts, setup commands and test suites
+// and inspects sandboxes, which plain commands like `bash setup.sh 1.0` already allow. Rubrics also keep a copy
+// of a starter file under /tmp to prove a script left it alone, so only that is opened beyond read-only.
+const gradingOnly: Agent.Info["permissions"] = [
+  ...readOnly,
+  { action: "shell", resource: "cp * /tmp/*", effect: "allow" },
+  { action: "shell", resource: "rm /tmp/*", effect: "allow" },
+]
+
+const primaryAgents = [
+  {
+    id: "tutor",
+    name: "Tutor",
+    description:
+      "Default learning companion. Explains concepts, guides exercises and debugging with progressive hints, and teaches with the Socratic method.",
+    color: "#ff9a67",
+    system: PROMPT_TUTOR,
+  },
+  {
+    id: "reviewer",
+    name: "Reviewer",
+    description:
+      "Reviews the learner's code and gives teaching feedback on correctness, style, and concepts without rewriting it.",
+    color: "#ef4444",
+    system: PROMPT_REVIEWER,
+  },
+]
+
+const subagents = [
+  {
+    id: "explainer",
+    name: "Explainer",
+    description: "Walks through a specific file, function, or concept line by line with analogies and small examples.",
+    color: "#a855f7",
+    steps: 12,
+    system: PROMPT_EXPLAINER,
+  },
+  {
+    id: "quizmaster",
+    name: "Quizmaster",
+    description:
+      "Generates quizzes, flashcards, and practice questions from the material, and grades answers with feedback.",
+    color: "#06b6d4",
+    steps: 10,
+    system: PROMPT_QUIZMASTER,
+  },
+  {
+    id: "researcher",
+    name: "Researcher",
+    description: "Finds and summarizes official documentation and reliable references for a topic.",
+    color: "#14b8a6",
+    steps: 12,
+    system: PROMPT_RESEARCHER,
+  },
+]
 
 const PROMPT_TITLE = `You name conversations so the user can find them later in a list of past sessions.
 
@@ -53,43 +177,73 @@ export const Plugin = define({
   id: "opencode.agent",
   effect: Effect.fn(function* (ctx) {
     yield* ctx.agent.transform((editor) => {
-      editor.update(Agent.defaultID, (item) => {
-        item.name = Agent.Name.make("Build")
-        item.description = "The default agent. Executes tools based on configured permissions."
+      for (const agent of primaryAgents) {
+        editor.update(Agent.ID.make(agent.id), (item) => {
+          item.name = Agent.Name.make(agent.name)
+          item.description = agent.description
+          item.color = agent.color
+          item.system = agent.system
+          item.mode = "primary"
+          item.permissions.push(...readOnly, { action: "question", resource: "*", effect: "allow" })
+        })
+      }
+
+      editor.update(Agent.ID.make("it-support"), (item) => {
+        item.name = Agent.Name.make("IT Support")
+        item.description = "Fixes problems with the trainee's laptop setup, such as Python not running."
+        item.color = "#3b82f6"
+        item.system = PROMPT_IT_SUPPORT
         item.mode = "primary"
-        item.permissions.push({ action: "question", resource: "*", effect: "allow" })
+        // The shell is unrestricted, unlike the other agents, so installs and config fixes can run.
+        item.permissions.push(
+          { action: "edit", resource: "*", effect: "deny" },
+          { action: "question", resource: "*", effect: "allow" },
+        )
       })
 
-      editor.update(Agent.ID.make("general"), (item) => {
-        item.name = Agent.Name.make("General")
+      for (const agent of subagents) {
+        editor.update(Agent.ID.make(agent.id), (item) => {
+          item.name = Agent.Name.make(agent.name)
+          item.description = agent.description
+          item.color = agent.color
+          item.system = agent.system
+          item.steps = agent.steps
+          item.mode = "subagent"
+          item.permissions.push(
+            ...readOnly,
+            { action: "question", resource: "*", effect: "deny" },
+            { action: "subagent", resource: "*", effect: "deny" },
+          )
+        })
+      }
+
+      editor.update(Agent.ID.make("updater"), (item) => {
+        item.name = Agent.Name.make("Updater")
         item.description =
-          "General-purpose agent for researching complex questions and executing multi-step tasks. Use this agent to execute multiple units of work in parallel."
+          "Finishes a course update whose merge stopped with conflicts: resolves them keeping the trainee's work, stages and commits. Only used by /update."
+        item.color = "#84cc16"
+        item.steps = 30
+        item.system = PROMPT_UPDATER
         item.mode = "subagent"
         item.permissions.push(
+          ...mergeOnly,
           { action: "question", resource: "*", effect: "deny" },
           { action: "subagent", resource: "*", effect: "deny" },
         )
       })
 
-      editor.update(Agent.ID.make("explore"), (item) => {
-        item.name = Agent.Name.make("Explore")
+      editor.update(Agent.ID.make("grader"), (item) => {
+        item.name = Agent.Name.make("Grader")
         item.description =
-          'Fast agent specialized for exploring codebases. Use this when you need to quickly find files by patterns (eg. "src/components/**/*.tsx"), search code for keywords (eg. "API endpoints"), or answer questions about the codebase (eg. "how do API endpoints work?"). When calling this agent, specify the desired thoroughness level: "quick" for basic searches, "medium" for moderate exploration, or "very thorough" for comprehensive analysis across multiple locations and naming conventions.'
-        item.system = PROMPT_EXPLORE
+          "Marks a confirmed /submit against the challenge's confidential rubric and reports functional and non-functional scores with evidence. Only used by /submit."
+        item.color = "#eab308"
+        item.steps = 40
+        item.system = PROMPT_GRADER
         item.mode = "subagent"
         item.permissions.push(
-          { action: "*", resource: "*", effect: "deny" },
-          { action: "shell", resource: "*", effect: "allow" },
-          { action: "grep", resource: "*", effect: "allow" },
-          { action: "glob", resource: "*", effect: "allow" },
-          { action: "webfetch", resource: "*", effect: "allow" },
-          { action: "websearch", resource: "*", effect: "allow" },
-          { action: "read", resource: "*", effect: "allow" },
-          { action: "read", resource: "*.env", effect: "ask" },
-          { action: "read", resource: "*.env.*", effect: "ask" },
-          { action: "read", resource: "*.env.example", effect: "allow" },
+          ...gradingOnly,
+          { action: "question", resource: "*", effect: "deny" },
           { action: "subagent", resource: "*", effect: "deny" },
-          { action: "external_directory", resource: "*", effect: "allow" },
         )
       })
 
@@ -97,6 +251,7 @@ export const Plugin = define({
         item.name = Agent.Name.make("Compaction")
         item.mode = "primary"
         item.hidden = true
+        item.permissions.push(...readOnly)
       })
 
       editor.update(Agent.ID.make("title"), (item) => {

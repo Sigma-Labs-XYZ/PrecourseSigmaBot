@@ -1,11 +1,23 @@
 import { describe, expect, test } from "bun:test"
-import path from "path"
 import { parse } from "../src/highlights"
 
 describe("highlights", () => {
-  test("parses the v2.0.27 release notes", async () => {
-    const changelog = await Bun.file(path.resolve(import.meta.dir, "../../../CHANGELOG.md")).text()
-    const notes = changelog.split(/^## v2\.0\.27 .*$/m)[1].split(/^## /m)[0]
+  test("parses release notes with highlights", () => {
+    const notes = [
+      "### Highlights",
+      "",
+      "- **Built-In Worktree Tools:** Ask OpenCode to use `worktree_create`, `worktree_list`, and `worktree_remove` in Code Mode. You can create",
+      "  isolated worktrees, move sessions into them, and remove them with normal edit approval. ([#1](https://github.com/anomalyco/opencode/pull/1))",
+      "- **Safer Remote Pairing:** The first remote pairing now asks for confirmation.",
+      "- **Installable Web App:** Use Chrome or Edge’s Install button to install the OpenCode web app, including when it runs behind an",
+      "  authenticating proxy.",
+      "- **Clear Session Failures:** Failed sessions now explain what went wrong.",
+      "- **Automatic Project Cleanup:** Unused projects are removed automatically.",
+      "",
+      "### Core",
+      "",
+      "- Fixed a crash.",
+    ].join("\n")
     const result = parse(notes)
 
     expect(result.problems).toEqual([])

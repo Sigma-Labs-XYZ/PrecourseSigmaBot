@@ -66,6 +66,7 @@
     "effect": "catalog:",
     "fuzzysort": "catalog:",
     "get-east-asian-width": "catalog:",
+    "jose": "6.0.11",
     "remeda": "catalog:",
     "solid-js": "catalog:",
     "string-width": "catalog:",

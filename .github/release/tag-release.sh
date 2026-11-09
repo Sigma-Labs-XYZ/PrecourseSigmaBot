@@ -1,26 +1,14 @@
 #!/usr/bin/env bash
-# tag-release.sh: in a checkout of the dispatched dev commit, commits the release versions and changelog
-# (OPENCODE_RELEASE_NOTES) and pushes only the v<version> tag at it. Writes sha=<commit> to $GITHUB_OUTPUT.
+# tag-release.sh: in a checkout of the dispatched dev commit, commits the release versions
+# and pushes only the v<version> tag at it. Writes sha=<commit> to $GITHUB_OUTPUT.
 # Runs git only, with hooks disabled; no repository code.
 . "$(dirname "$0")/lib.sh"
 
 tag="v$OPENCODE_VERSION"
 git ls-files -z -- '*package.json' bun.lock | xargs -0 sed -i -E "s/\"version\": \"[^\"]+\"/\"version\": \"$OPENCODE_VERSION\"/g"
 
-if [ -n "${OPENCODE_RELEASE_NOTES:-}" ] && ! grep -qF -x "## $tag" CHANGELOG.md && ! grep -qF "## $tag " CHANGELOG.md; then
-  notes=$(mktemp)
-  printf '%s\n' "$OPENCODE_RELEASE_NOTES" > "$notes"
-  awk -v entry="## $tag — $(date -u +%F)" -v notes="$notes" '
-    function emit() { print entry; print ""; while ((getline line < notes) > 0) print line; print ""; done = 1 }
-    !done && /^## / { emit() }
-    { print }
-    END { if (!done) { print ""; emit() } }
-  ' CHANGELOG.md > "$notes.md"
-  mv "$notes.md" CHANGELOG.md
-fi
-
-if git diff --name-only | grep -vE '(^|/)package\.json$|^bun\.lock$|^CHANGELOG\.md$'; then
-  die "The release commit may only change versions and the changelog"
+if git diff --name-only | grep -vE '(^|/)package\.json$|^bun\.lock$'; then
+  die "The release commit may only change versions"
 fi
 
 git -c core.hooksPath=/dev/null \

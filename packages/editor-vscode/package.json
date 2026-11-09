@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json.schemastore.org/package.json",
+  "name": "sigmabot-editor-context",
+  "displayName": "SigmaBot Editor Context",
+  "description": "Shares the active file, selection and open tabs with the SigmaBot TUI",
+  "version": "0.1.0",
+  "private": true,
+  "type": "commonjs",
+  "license": "MIT",
+  "publisher": "sigma-labs",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "sigmabot.open",
+        "title": "SigmaBot: Open",
+        "icon": "$(mortar-board)"
+      },
+      {
+        "command": "sigmabot.install",
+        "title": "SigmaBot: Install CLI"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "sigmabot",
+          "title": "SigmaBot",
+          "icon": "media/sigmabot.svg"
+        }
+      ]
+    },
+    "views": {
+      "sigmabot": [
+        {
+          "id": "sigmabot.welcome",
+          "name": "SigmaBot",
+          "type": "webview"
+        }
+      ]
+    },
+    "menus": {
+      "editor/title": [
+        {
+          "command": "sigmabot.open",
+          "group": "navigation"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "SigmaBot",
+      "properties": {
+        "sigmabot.installCommand": {
+          "type": "string",
+          "default": "curl -fsSL https://opencode.ai/v2/install | bash",
+          "markdownDescription": "Shell command run in a terminal (after confirmation) to install the SigmaBot CLI."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "bun build src/extension.ts --outfile dist/extension.js --target node --format cjs --external vscode",
+    "package": "bun run build && bunx @vscode/vsce package --no-dependencies --allow-missing-repository --skip-license",
+    "test": "bun test --only-failures",
+    "typecheck": "bun check --no-script",
+    "typecheck:tsc": "tsc --noEmit"
+  },
+  "dependencies": {
+    "ws": "8.21.0"
+  },
+  "devDependencies": {
+    "@tsconfig/bun": "catalog:",
+    "@types/bun": "catalog:",
+    "@types/vscode": "1.90.0",
+    "@types/ws": "8.18.1"
+  }
+}

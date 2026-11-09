@@ -971,7 +971,7 @@ describe("Session.create", () => {
 
       yield* db.update(SessionTable).set({ agent: Agent.defaultID }).where(eq(SessionTable.id, id)).run().pipe(Effect.orDie)
 
-      expect(yield* session.create(input)).toMatchObject({ id: created.id, agent: "build" })
+      expect(yield* session.create(input)).toMatchObject({ id: created.id, agent: Agent.defaultID })
     }),
   )
 

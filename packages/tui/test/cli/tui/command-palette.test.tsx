@@ -75,11 +75,11 @@ test("searches settings globally and opens the matching setting", async () => {
     await app.waitFor(() => app.renderer.currentFocusedEditor instanceof InputRenderable)
 
     app.mockInput.pressArrow("down")
-    for (const key of "image preview") app.mockInput.pressKey(key)
+    for (const key of "scrollbar") app.mockInput.pressKey(key)
     app.mockInput.pressEnter()
-    await app.waitForFrame((frame) => frame.includes("Settings") && frame.includes("Image previews"))
+    await app.waitForFrame((frame) => frame.includes("Settings") && frame.includes("Scrollbar"))
     app.mockInput.pressEnter()
-    await app.waitFor(() => current.prompt?.image_preview === true)
+    await app.waitFor(() => current.session?.scrollbar === true)
   } finally {
     app.renderer.destroy()
   }

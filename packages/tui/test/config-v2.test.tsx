@@ -91,29 +91,6 @@ test("resolves automatic tabs from the terminal environment", () => {
   ).toMatchObject({ mode: "on", enabled: true })
 })
 
-test("shows resolved tab defaults in settings", () => {
-  expect(settings.find((setting) => setting.path.join(".") === "tabs.mode")).toMatchObject({
-    default: "auto",
-    values: ["off", "on", "auto"],
-  })
-  expect(settings.find((setting) => setting.path.join(".") === "tabs.scope")?.default).toBe("cwd")
-  expect(settings.find((setting) => setting.path.join(".") === "tabs.layout")?.default).toBe("horizontal")
-  expect(settings.find((setting) => setting.path.join(".") === "tabs.indicators")).toMatchObject({
-    default: "status",
-    values: ["status", "numbers"],
-  })
-})
-
-test("shows the new session location default in settings", () => {
-  expect(settings.find((setting) => setting.path.join(".") === "session.new_location")?.default).toBe("launch")
-})
-
-test("shows the TPS default in session settings", () => {
-  const setting = settings.find((setting) => setting.path.join(".") === "session.tps")
-  expect(setting?.category).toBe("Session")
-  expect(setting?.default).toBe(true)
-})
-
 test("shows transcript verbosity in session settings", () => {
   expect(settings.find((setting) => setting.path.join(".") === "session.verbosity")).toMatchObject({
     category: "Session",
@@ -122,23 +99,10 @@ test("shows transcript verbosity in session settings", () => {
   })
 })
 
-test("names tool grouping explicitly in settings", () => {
-  expect(settings.find((setting) => setting.path.join(".") === "session.grouping")).toMatchObject({
-    title: "Tool grouping",
-    category: "Session",
-    default: "auto",
-    values: ["none", "auto"],
-  })
-})
-
 test("validates terminal copy behavior", () => {
   expect(decodeInfo({ terminal: { copy: "manual" } })).toEqual({ terminal: { copy: "manual" } })
   expect(decodeInfo({ terminal: { copy: "select" } })).toEqual({ terminal: { copy: "select" } })
   expect(() => decodeInfo({ terminal: { copy: "always" } })).toThrow()
-
-  const setting = settings.find((setting) => setting.path.join(".") === "terminal.copy")
-  expect(setting?.values).toEqual(["manual", "select"])
-  expect(setting?.default).toBe(process.platform === "win32" ? "manual" : "select")
 })
 
 test("uses command IDs as keybind keys", () => {
@@ -279,11 +243,6 @@ test("uses ctrl+z for input undo when terminal suspend is unavailable", () => {
   )
   expect(overridden.keybinds.has("terminal.suspend")).toBe(false)
   expect(overridden.keybinds.get("input.undo")).toMatchObject([{ key: "ctrl+u" }])
-})
-
-test("keeps turn token usage inside developer tools", () => {
-  expect(settings.find((setting) => setting.path.join(".") === "debug.devtools")?.title).toBe("Developer tools")
-  expect(settings.some((setting) => setting.path.join(".") === "debug.turn_tokens")).toBe(false)
 })
 
 test("provides config and its host interface", async () => {

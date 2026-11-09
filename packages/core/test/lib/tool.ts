@@ -10,7 +10,7 @@ import { Effect, type Scope } from "effect"
 import { host } from "../plugin/host"
 
 export const toolIdentity = {
-  agent: Agent.ID.make("build"),
+  agent: Agent.defaultID,
   messageID: SessionMessage.ID.make("msg_tool_test"),
 }
 

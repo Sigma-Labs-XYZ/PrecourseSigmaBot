@@ -419,7 +419,6 @@ export function RunCommandMenuBody(props: {
         action: "editor",
         category: "Session",
         display: "Open editor",
-        footer: "/editor",
         keywords: "editor compose draft external editor",
       },
       {

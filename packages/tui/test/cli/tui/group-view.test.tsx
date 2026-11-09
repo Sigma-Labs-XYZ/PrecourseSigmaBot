@@ -140,13 +140,9 @@ test("retains nested expansion state and registers exact headers and parts", asy
       }),
     )
     await app.renderOnce()
-    expect(app.captureCharFrame()).toContain("Thought")
+    expect(app.captureCharFrame()).not.toContain("Thought")
     expect(app.captureCharFrame()).not.toContain("Reset thought body")
-    const thinkingID = groupID(row, 0)
-    if (!thinkingID) throw new Error("Missing thinking group ID")
-    setExpanded(thinkingID, true)
-    await app.waitForFrame((frame) => frame.includes("Reset thought body"))
-    expect(app.captureCharFrame()).toContain("Reset thought body")
+    expect(anchors.get({ type: "group", groupID: groupID(row, 0)! })).toBeUndefined()
   } finally {
     app.renderer.destroy()
   }

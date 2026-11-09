@@ -38,6 +38,7 @@ const EditorSelectionRangesSchema = Schema.Struct({
   filePath: Schema.String,
   source: Schema.optional(Schema.Literals(["websocket", "zed"])),
   ranges: Schema.mutable(Schema.Array(EditorSelectionRangeSchema).check(Schema.isMinLength(1))),
+  openFiles: Schema.optional(Schema.mutable(Schema.Array(Schema.String))),
 })
 
 const EditorSelectionSchema = Schema.Union([
@@ -50,6 +51,7 @@ const EditorSelectionSchema = Schema.Union([
       start: PositionSchema,
       end: PositionSchema,
     }),
+    openFiles: Schema.optional(Schema.mutable(Schema.Array(Schema.String))),
   }),
 ]).pipe(
   Schema.decodeTo(EditorSelectionRangesSchema, {
@@ -65,6 +67,7 @@ const EditorSelectionSchema = Schema.Union([
                 selection: value.selection,
               },
             ],
+            openFiles: value.openFiles,
           },
     ),
     encode: SchemaGetter.passthrough({ strict: false }),
@@ -88,7 +91,7 @@ const EditorServerInfoSchema = Schema.Struct({
 })
 
 const decodeJsonRpcMessage = Schema.decodeUnknownOption(JsonRpcMessageSchema)
-const decodeEditorSelection = Schema.decodeUnknownOption(EditorSelectionSchema)
+export const decodeEditorSelection = Schema.decodeUnknownOption(EditorSelectionSchema)
 const decodeEditorMention = Schema.decodeUnknownOption(EditorMentionSchema)
 const decodeEditorServerInfo = Schema.decodeUnknownOption(EditorServerInfoSchema)
 
@@ -384,6 +387,7 @@ export function editorSelectionKey(selection: EditorSelection | undefined) {
       range.selection.end.character,
       range.text,
     ]),
+    ...(selection.openFiles ?? []),
   ].join("\0")
 }
 

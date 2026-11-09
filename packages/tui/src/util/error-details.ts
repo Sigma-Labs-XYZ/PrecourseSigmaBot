@@ -8,7 +8,7 @@ export function errorDetails(input: { title: string; error: string; context?: st
   return {
     text,
     prompt: [
-      "Investigate why this OpenCode component failed in the current project.",
+      "Investigate why this SigmaBot component failed in the current project.",
       text,
       ...(input.diagnosticRef
         ? [

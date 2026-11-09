@@ -314,7 +314,7 @@ it.live(
       expect(fixture.state.calls).toBe(7)
       expect(retries).toMatchObject([
         {
-          agent: "build",
+          agent: Agent.defaultID,
           attempt: 2,
           error: { type: "provider.rate-limit" },
           decision: { retry: true, delay: 0 },

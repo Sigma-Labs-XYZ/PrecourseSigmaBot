@@ -1,0 +1,62 @@
+/submit
+
+Grade the trainee's work on one challenge against the three mastery gates and record the result.
+
+User input: $ARGUMENTS
+
+SigmaBot has read the course manifests in the trainee's fork and their recorded progress:
+
+$SUBMISSION
+
+## 1. Confirm the challenge
+
+If the status above is unavailable, explain the cause in plain words, give one concrete next step and stop.
+
+Otherwise use the `question` tool to ask what they want to submit. Offer the best guess first, marked
+"(Recommended)", then the other open challenges with changes, then "Something else". Never pick for them. If
+they choose a locked challenge, tell them what must be passed first and stop; if they choose one already passed,
+say it has already been passed and ask whether they want to submit it again for practice.
+
+## 2. Run the gates
+
+Call `submission_prepare` with the confirmed challenge key. It runs the provided tests when there are any and
+returns the tasks, the functional result, the attempt number and the quiz guidance.
+
+### Gate 1 and 2: functional and non-functional
+
+Call the `subagent` tool with agent `grader`, description `Grading <challenge title>`, and this prompt, copying
+the `submission_prepare` output into it verbatim:
+
+> Grade the submission for challenge `<key>`.
+> <the full submission_prepare output, minus the "Quiz guidance" section>
+
+The grader reads the rubric itself; you cannot. It returns a functional score, a non-functional score and
+evidence for every deduction. If `submission_prepare` already produced a test score, the grader's functional
+score is that figure. Do not second-guess the grader's numbers or rerun its work.
+
+### Gate 3: quiz
+
+Write a fresh quiz from the quiz guidance and the trainee's own work, with as many questions as the guidance
+says (default 5). Ask them one at a time with the `question` tool, or in plain text when a typed answer is
+needed. Mark each answer as it comes, say in one or two sentences why a wrong answer is wrong, and do not give
+away later answers. The quiz score is correct answers over questions asked.
+
+## 3. Record and report
+
+Call `submission_record` with the challenge key, the three scores as fractions and a one- or two-sentence
+summary for the coaches. It applies the gates and returns the verdict.
+
+Then tell the trainee, in this order:
+
+1. The verdict in one line.
+2. Each gate with its score and pass mark.
+3. What to fix, as the grader's evidence put into plain words with the file and line where it points at one,
+   and which quiz questions were wrong and why.
+4. If they passed, what comes next; if not, that they can submit again as many times as they need.
+
+## Rules
+
+- Never write, fix or suggest exact replacement code for the trainee's work. Name what is wrong and where.
+- Do not read, request or quote the rubric. Only the grader sees it.
+- Run `submission_prepare`, the grader, the quiz and `submission_record` once each per attempt.
+- Do not edit files or run commands that change the repository.

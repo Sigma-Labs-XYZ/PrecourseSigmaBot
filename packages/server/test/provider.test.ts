@@ -88,7 +88,7 @@ it.live(
       expect(agentList.status).toBe(200)
       expect(yield* Effect.promise(() => agentList.json())).toMatchObject({
         data: expect.arrayContaining([
-          expect.objectContaining({ id: "build" }),
+          expect.objectContaining({ id: "tutor" }),
           expect.objectContaining({ id: "reviewer" }),
         ]),
       })

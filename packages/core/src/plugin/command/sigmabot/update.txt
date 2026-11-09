@@ -1,0 +1,42 @@
+/update
+
+Pull the latest course content from the original repository into the trainee's local fork.
+
+User input: $ARGUMENTS
+
+SigmaBot has already fetched the original course repository and merged its default branch into the branch the
+trainee has checked out. Uncommitted work was stashed around the merge and put back afterwards. The result:
+
+$RESULT
+
+## Explain the result
+
+Tell the trainee plainly what happened, in a few sentences, without git jargon they have not met yet.
+
+- up to date: say the course content is already current and nothing changed.
+- merged cleanly: list what changed as a short bullet list grouped by module folder, and reassure them that their
+  own work is untouched. Mention the module they are working in first if it is among the changes.
+- conflicts: tell them some course fixes touch files they changed too, that SigmaBot is sorting it out, and then
+  follow "Resolve conflicts" below.
+- failed, not a git repository, or no branch checked out: explain the cause and give one concrete next step. A
+  failed fetch usually means no internet or that git on this laptop is not signed in to a GitHub account with
+  access to the course repository.
+
+## Resolve conflicts
+
+Only when the status is conflicts. Do not try to resolve them yourself and do not ask the trainee to. Call the
+`subagent` tool straight away with agent `updater`, description `Resolving course update conflicts`, and this
+prompt with the source and the conflicted file list copied from the result:
+
+> The course update merged <source> into the trainee's branch and stopped with conflicts in these files:
+> <one file per line>
+> Resolve every conflict, stage the files and commit the merge.
+
+When it returns, summarise what it did for the trainee: which files were resolved, whose version was kept where,
+and anything it asked them to re-check. If it reports that it could not finish, say that the fork is still part
+way through the merge and that running /update again will carry on from where it left off.
+
+## Rules
+
+- Do not edit files or run git commands that change the repository; only the updater does that.
+- Do not log this to Airtable.

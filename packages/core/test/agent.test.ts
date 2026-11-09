@@ -178,14 +178,21 @@ describe("Agent", () => {
 
       const agents = yield* agent.list()
       expect(agents.map((item) => String(item.id)).sort()).toEqual([
-        "build",
         "compaction",
-        "explore",
-        "general",
+        "explainer",
+        "grader",
+        "it-support",
+        "quizmaster",
+        "researcher",
+        "reviewer",
         "summary",
         "title",
+        "tutor",
+        "updater",
       ])
-      expect((yield* agent.get(Agent.defaultID))?.system).toBeUndefined()
+      expect(Agent.defaultID).toBe(Agent.ID.make("tutor"))
+      expect((yield* agent.get(Agent.defaultID))?.system).toContain("patient tutor")
+      expect((yield* agent.get(Agent.ID.make("reviewer")))?.mode).toBe("primary")
       const permissions = (yield* agent.get(Agent.defaultID))?.permissions ?? []
       const compaction = yield* agent.get(Agent.ID.make("compaction"))
       expect(compaction?.mode).toBe("primary")
@@ -203,14 +210,12 @@ describe("Agent", () => {
       expect(Permission.evaluate("external_directory", path.join(global.config, "*"), permissions).effect).toBe("allow")
       expect(Permission.evaluate("external_directory", path.join(global.tmp, "*"), permissions).effect).toBe("allow")
       expect(Permission.evaluate("external_directory", "/outside/*", permissions).effect).toBe("allow")
-      const explore = yield* agent.get(Agent.ID.make("explore"))
-      expect(Permission.evaluate("shell", "git log -5", explore?.permissions ?? []).effect).toBe("allow")
-      expect(Permission.evaluate("edit", "src/index.ts", explore?.permissions ?? []).effect).toBe("deny")
-      expect(Permission.evaluate("read", ".env", explore?.permissions ?? []).effect).toBe("ask")
-      expect(Permission.evaluate("read", ".env.local", explore?.permissions ?? []).effect).toBe("ask")
-      expect(Permission.evaluate("read", ".env.example", explore?.permissions ?? []).effect).toBe("allow")
-      expect(Permission.evaluate("read", "src/index.ts", explore?.permissions ?? []).effect).toBe("allow")
-      expect(Permission.evaluate("external_directory", "/outside/*", explore?.permissions ?? []).effect).toBe("allow")
+      const reviewer = yield* agent.get(Agent.ID.make("reviewer"))
+      expect(Permission.evaluate("shell", "git log -5", reviewer?.permissions ?? []).effect).toBe("allow")
+      expect(Permission.evaluate("read", ".env", reviewer?.permissions ?? []).effect).toBe("ask")
+      expect(Permission.evaluate("read", ".env.example", reviewer?.permissions ?? []).effect).toBe("allow")
+      expect(Permission.evaluate("read", "src/index.ts", reviewer?.permissions ?? []).effect).toBe("allow")
+      expect(Permission.evaluate("external_directory", "/outside/*", reviewer?.permissions ?? []).effect).toBe("allow")
       for (const item of agents) {
         expect(item.permissions.some((rule) => rule.action === "bash" && rule.effect !== "deny")).toBe(false)
       }
@@ -226,7 +231,7 @@ describe("Agent", () => {
         }),
       )
 
-      yield* Effect.forEach(["general", "explore"], (id) =>
+      yield* Effect.forEach(["explainer", "grader", "quizmaster", "researcher", "updater"], (id) =>
         Effect.gen(function* () {
           const info = yield* agent.get(Agent.ID.make(id))
           if (!info) throw new Error(`expected built-in agent: ${id}`)
@@ -235,6 +240,136 @@ describe("Agent", () => {
           expect(Permission.evaluate("subagent", "*", info.permissions).effect).toBe("deny")
         }),
       )
+    }),
+  )
+
+  it.effect(
+    "never lets a built-in agent but the updater edit files, or any but IT support write through the shell",
+    () =>
+      Effect.gen(function* () {
+        const agent = yield* Agent.Service
+        yield* AgentPlugin.Plugin.effect(
+          host({
+            agent: agentHost(agent),
+          }),
+        )
+
+        for (const info of yield* agent.list()) {
+          if (info.id === "updater") continue
+          expect(Permission.evaluate("edit", "src/index.ts", info.permissions).effect).toBe("deny")
+          if (info.id === "title" || info.id === "summary" || info.id === "it-support") continue
+          expect(Permission.evaluate("shell", "ls -la", info.permissions).effect).toBe("allow")
+          expect(Permission.evaluate("shell", "git status", info.permissions).effect).toBe("allow")
+          for (const command of [
+            "echo hi > src/index.ts",
+            "rm -rf src",
+            "sed -i s/a/b/ src/index.ts",
+            "git commit -am x",
+          ]) {
+            expect(Permission.evaluate("shell", command, info.permissions).effect).toBe("deny")
+          }
+        }
+      }),
+  )
+
+  it.effect("lets the updater edit files and finish a merge, but run nothing else", () =>
+    Effect.gen(function* () {
+      const agent = yield* Agent.Service
+      yield* AgentPlugin.Plugin.effect(
+        host({
+          agent: agentHost(agent),
+        }),
+      )
+
+      const info = yield* agent.get(Agent.ID.make("updater"))
+      if (!info) throw new Error("expected built-in agent: updater")
+      expect(info.mode).toBe("subagent")
+      expect(info.system).toContain("conflict")
+      expect(Permission.evaluate("edit", "01-shell/solution.py", info.permissions).effect).toBe("allow")
+      expect(Permission.evaluate("question", "*", info.permissions).effect).toBe("deny")
+      for (const command of [
+        "git status",
+        "git diff --name-only --diff-filter=U",
+        "git add 01-shell/solution.py",
+        "git rm 01-shell/old.py",
+        "git commit --no-edit",
+        "git merge --continue",
+        "git checkout --ours 01-shell/solution.py",
+      ]) {
+        expect(Permission.evaluate("shell", command, info.permissions).effect).toBe("allow")
+      }
+      for (const command of [
+        "ls -la",
+        "python -m pytest",
+        "git merge --abort",
+        "git reset --hard",
+        "git checkout main",
+        "git push",
+        "rm -rf 01-shell",
+        "echo hi > src/index.ts",
+      ]) {
+        expect(Permission.evaluate("shell", command, info.permissions).effect).toBe("deny")
+      }
+    }),
+  )
+
+  it.effect("lets the grader run the work and keep a marking copy under /tmp, but write nothing else", () =>
+    Effect.gen(function* () {
+      const agent = yield* Agent.Service
+      yield* AgentPlugin.Plugin.effect(
+        host({
+          agent: agentHost(agent),
+        }),
+      )
+
+      const info = yield* agent.get(Agent.ID.make("grader"))
+      if (!info) throw new Error("expected built-in agent: grader")
+      expect(info.mode).toBe("subagent")
+      expect(info.system).toContain("rubric")
+      expect(Permission.evaluate("edit", "01-shell/solution.py", info.permissions).effect).toBe("deny")
+      expect(Permission.evaluate("question", "*", info.permissions).effect).toBe("deny")
+      for (const command of [
+        "bash setup.sh 1.0",
+        "bash 1.1-the-first-snapshot.sh",
+        "pytest tests",
+        "cp ~/hm-sandbox/first-commit/ops/scratch-draft.txt /tmp/first-commit-draft.txt",
+        "diff /tmp/first-commit-draft.txt ~/hm-sandbox/first-commit/ops/scratch-draft.txt",
+        "rm /tmp/first-commit-draft.txt",
+        "git -C ~/hm-sandbox/first-commit/ops log --oneline --stat",
+      ]) {
+        expect(Permission.evaluate("shell", command, info.permissions).effect).toBe("allow")
+      }
+      for (const command of [
+        "cp a.txt b.txt",
+        "rm -rf 01-shell",
+        "git add .",
+        "git commit -m x",
+        "echo hi > src/index.ts",
+      ]) {
+        expect(Permission.evaluate("shell", command, info.permissions).effect).toBe("deny")
+      }
+    }),
+  )
+
+  it.effect("lets IT support run any setup command without editing files", () =>
+    Effect.gen(function* () {
+      const agent = yield* Agent.Service
+      yield* AgentPlugin.Plugin.effect(
+        host({
+          agent: agentHost(agent),
+        }),
+      )
+
+      const info = yield* agent.get(Agent.ID.make("it-support"))
+      if (!info) throw new Error("expected built-in agent: it-support")
+      expect(info.mode).toBe("primary")
+      expect(info.hidden).toBe(false)
+      expect(info.system).toContain("laptop")
+      expect(Permission.evaluate("question", "*", info.permissions).effect).toBe("allow")
+      expect(Permission.evaluate("edit", "src/index.ts", info.permissions).effect).toBe("deny")
+      for (const command of ["brew install python", "pip install requests", "echo 'export PATH=$PATH' >> ~/.zshrc"]) {
+        expect(Permission.evaluate("shell", command, info.permissions).effect).toBe("allow")
+      }
     }),
   )
 })

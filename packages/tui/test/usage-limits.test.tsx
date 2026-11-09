@@ -19,7 +19,7 @@ const model = (id: string, name: string, input: number) => ({
   time: { released: 1 },
 })
 
-test("shows what the workspace's limits leave and why a refused turn stopped", async () => {
+test("explains why a refused turn stopped without showing budget figures", async () => {
   await using state = await tmpdir()
   const session = {
     id: "ses_usage_limits",
@@ -122,41 +122,11 @@ test("shows what the workspace's limits leave and why a refused turn stopped", a
 
   await setup.ready
   await setup.waitForFrame((frame) => frame.includes("Refactor the parser"))
-  // The refused turn says which limit stopped it and how to keep going, and the composer warns as the model runs low.
+  // The refused turn says which limit stopped it and how to keep going, without budget figures in the composer.
   await setup.waitForFrame(
     (frame) =>
-      frame.includes("GPT 5.6 Sol usage limit reached") &&
+      frame.includes("usage limit reached") &&
       frame.includes("Switch model with") &&
-      /GPT 5\.6 Sol OpenCode +\$6 left/.test(frame) &&
-      frame.includes("Running low on GPT 5.6 Sol"),
-  )
-
-  await setup.mockInput.typeText("/usage")
-  setup.mockInput.pressEnter()
-  // Shared money would look counted twice on every row, so only the selected model shows its amount.
-  await setup.waitForFrame(
-    (frame) =>
-      frame.includes("Workspace: Acme") &&
-      /Claude Opus 5 +\$6 left/.test(frame) &&
-      !/GPT 5\.6 Sol +\$6 left/.test(frame),
-  )
-
-  setup.mockInput.pressEnter()
-  await setup.waitForFrame(
-    (frame) =>
-      frame.includes("Usage › Claude Opus 5") &&
-      frame.includes("$6 remaining") &&
-      frame.includes("$44 used of $50") &&
-      frame.includes("Only you · GPT 5.6 Sol, Claude Opus 5"),
-  )
-
-  // The model picker says what's left on the model it highlights, and opens the same usage list.
-  setup.mockInput.pressEscape()
-  await setup.waitForFrame((frame) => !frame.includes("Usage › Claude Opus 5"))
-  await setup.mockInput.typeText("/models")
-  setup.mockInput.pressEnter()
-  await setup.waitForFrame(
-    (frame) =>
-      frame.includes("Search models") && /\$6 left +\$4\/\$20 per 1M/.test(frame) && frame.includes("usage ctrl+u"),
+      !/\$6 left|Running low/.test(frame),
   )
 })

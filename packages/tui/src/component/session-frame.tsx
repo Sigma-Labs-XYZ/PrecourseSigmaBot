@@ -107,7 +107,7 @@ export function SessionFrame(props: { sessionID: string; verticalTabsWidth: numb
   const sidebarVisible = createMemo(() => {
     if (data.session.get(props.sessionID)?.parentID) return false
     if (sidebarOpen()) return true
-    return (config.data.session?.sidebar ?? "auto") === "auto" && wide()
+    return (config.data.session?.sidebar ?? "hide") === "auto" && wide()
   })
   const rightPane = createMemo(() => {
     if (activePanel()) return "panel"

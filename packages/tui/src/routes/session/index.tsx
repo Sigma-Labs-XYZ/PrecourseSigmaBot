@@ -70,9 +70,7 @@ import { statusLabel } from "../../component/dialog-workspace-file-changes"
 import { DialogMessage } from "./dialog-message"
 import { DialogFork } from "./dialog-fork"
 import { DialogTimeline } from "./dialog-timeline"
-import { DialogGoUpsell } from "../../component/dialog-go-upsell"
-import { UsageLimitNotice, useLimitNotice, useUsageAlerts } from "../../component/usage"
-import { useStorage } from "../../context/storage"
+import { UsageLimitNotice, useLimitNotice } from "../../component/usage"
 import { Composer } from "./composer"
 import { filetype } from "../../util/filetype"
 import parsers from "../../parsers-config"
@@ -91,7 +89,7 @@ import { DialogExportOptions } from "../../ui/dialog-export-options"
 import { DialogExportResult } from "../../ui/dialog-export-result"
 import { useConfig, useNewDesigns } from "../../config"
 import { useClipboard } from "../../context/clipboard"
-import { nextThinkingMode, type ThinkingMode } from "../../context/thinking"
+import type { ThinkingMode } from "../../context/thinking"
 import { getScrollAcceleration } from "../../util/scroll"
 import { collapseShellOutput, collapseToolOutput } from "../../util/collapse-tool-output"
 import { Keymap, type KeymapCommand } from "../../context/keymap"
@@ -237,7 +235,8 @@ export function Session(props: {
 
   const renderer = useRenderer()
   const dimensions = useTerminalDimensions()
-  const thinkingMode = createMemo<ThinkingMode>(() => config.session?.thinking ?? "hide")
+  // Thinking is always hidden in the transcript; the config value is ignored.
+  const thinkingMode = createMemo<ThinkingMode>(() => "hide")
   const showScrollbar = createMemo(() => config.session?.scrollbar ?? false)
   const markdownMode = createMemo(() => config.session?.markdown ?? "rendered")
   const diffWrapMode = createMemo(() => config.diffs?.wrap ?? "word")
@@ -625,21 +624,8 @@ export function Session(props: {
     current.submit()
   })
   const dialog = useDialog()
-  const storage = useStorage()
-  const [goUpsell, updateGoUpsell] = storage.store<{ lastSeenAt?: number; dontShow?: boolean }>("go-upsell", {
-    initial: {},
-  })
-  const [goUpsellMemory, updateGoUpsellMemory] = storage.memory<{ lastSeenAt?: number; dontShow?: boolean }>(
-    "go-upsell",
-    { initial: {} },
-  )
   const handledFreeLimits = new Set<string>()
-  useUsageAlerts(() => route.sessionID)
-  let sessionDisposed = false
-  onCleanup(() => {
-    sessionDisposed = true
-  })
-  // Restore the prompt when the free allowance stops it, and offer OpenCode Go on the first hit in a day.
+  // Restore the prompt when the free allowance stops it.
   onCleanup(
     data.on("session.step.failed", (event) => {
       if (event.data.sessionID !== route.sessionID || event.data.error.type !== "provider.free-limit") return
@@ -665,82 +651,6 @@ export function Session(props: {
           break
         }
       }
-      if (dialog.stack.length > 0) return
-      if (goUpsell.dontShow || goUpsellMemory.dontShow) return
-      const now = Date.now()
-      const seen = Math.max(goUpsell.lastSeenAt ?? 0, goUpsellMemory.lastSeenAt ?? 0)
-      if (seen > 0 && now - seen < 86_400_000) return
-      const expectedText = current.current.text
-      const expectedFiles = current.current.files?.length ?? 0
-      const expectedAgents = current.current.agents?.length ?? 0
-      const expectedSkills = current.current.skills?.length ?? 0
-      const expectedPasted = current.current.pasted.length
-      const hasRecalledPrompt = () => {
-        const active = prompt()
-        return Boolean(
-          !sessionDisposed &&
-            route.sessionID === event.data.sessionID &&
-            active &&
-            active.current.text === expectedText &&
-            (active.current.files?.length ?? 0) === expectedFiles &&
-            (active.current.agents?.length ?? 0) === expectedAgents &&
-            (active.current.skills?.length ?? 0) === expectedSkills &&
-            active.current.pasted.length === expectedPasted,
-        )
-      }
-      const canOpen = () =>
-        Boolean(hasRecalledPrompt() && dialog.stack.length === 0 && !goUpsell.dontShow && !goUpsellMemory.dontShow)
-      const previousSeen = goUpsellMemory.lastSeenAt
-      updateGoUpsellMemory((draft) => {
-        draft.lastSeenAt = now
-      })
-      let claimed = false
-      void updateGoUpsell((draft) => {
-        if (draft.dontShow) {
-          updateGoUpsellMemory((mem) => {
-            mem.dontShow = true
-            mem.lastSeenAt = draft.lastSeenAt ?? previousSeen
-          })
-          return
-        }
-        if ((draft.lastSeenAt ?? 0) > 0 && now - (draft.lastSeenAt ?? 0) < 86_400_000) {
-          updateGoUpsellMemory((mem) => {
-            mem.lastSeenAt = draft.lastSeenAt
-          })
-          return
-        }
-        if (!canOpen()) {
-          updateGoUpsellMemory((mem) => {
-            mem.lastSeenAt = previousSeen
-          })
-          return
-        }
-        draft.lastSeenAt = now
-        claimed = true
-      })
-        .catch(() => {
-          claimed = true
-        })
-        .then(() => {
-          if (!claimed || !canOpen()) return
-          dialog.replace(() => (
-            <DialogGoUpsell
-              reset={freeLimitReset(event.data.error.retryAfterMs, event.created)}
-              canContinue={hasRecalledPrompt}
-              onDontShowAgain={() => {
-                updateGoUpsellMemory((draft) => {
-                  draft.dontShow = true
-                })
-                void updateGoUpsell((draft) => {
-                  draft.dontShow = true
-                }).catch(() => undefined)
-              }}
-              onSubscribe={() => {
-                prompt()?.submit()
-              }}
-            />
-          ))
-        })
     }),
   )
   const runPendingAction = createSingleFlight<string>()
@@ -1048,7 +958,6 @@ export function Session(props: {
       title: "Jump to message",
       id: "session.timeline",
       group: "Session",
-      slash: { name: "timeline" },
       run: () => {
         dialog.replace(() => (
           <DialogTimeline
@@ -1063,7 +972,6 @@ export function Session(props: {
       title: "Fork session",
       id: "session.fork",
       group: "Session",
-      slash: { name: "fork" },
       run: () => {
         dialog.replace(() => (
           <DialogFork
@@ -1147,24 +1055,6 @@ export function Session(props: {
           if (error) toast.show({ message: errorMessage(error), variant: "error", duration: 5000 })
           dialog.clear()
         })()
-      },
-    },
-    {
-      title: (() => {
-        const next = nextThinkingMode(thinkingMode())
-        if (next === "hide") return "Collapse thinking"
-        return "Expand thinking"
-      })(),
-      id: "session.toggle.thinking",
-      group: "Session",
-      palette: undefined,
-      run: () => {
-        void configState
-          .update((draft) => {
-            draft.session = { ...draft.session, thinking: nextThinkingMode(thinkingMode()) }
-          })
-          .catch(toast.error)
-        dialog.clear()
       },
     },
     {
@@ -2006,22 +1896,7 @@ function SessionPartView(props: {
 }
 
 function AssistantFooter(props: { message: SessionMessageAssistant }) {
-  const ctx = use()
-  const config = useConfig()
-  const data = useData()
-  const local = useLocal()
   const theme = useTheme()
-  const model = createMemo(
-    () =>
-      ctx
-        .models()
-        .find((model) => model.providerID === props.message.model.providerID && model.id === props.message.model.id)
-        ?.name ?? `${props.message.model.providerID}/${props.message.model.id}`,
-  )
-  const messages = createMemo(() => data.session.message.list(ctx.sessionID))
-  const turn = () => ({ index: ctx.messageIndex(props.message.id), legacy: ctx.legacyTurns() })
-  const duration = createMemo(() => SessionTurn.duration(messages(), props.message, turn()))
-  const tokensPerSecond = createMemo(() => SessionTurn.tokensPerSecond(messages(), props.message, turn()))
   const interrupted = createMemo(() => props.message.error?.message === "Step interrupted")
   const freeLimit = createMemo(() => props.message.error?.type === "provider.free-limit")
   const limitNotice = useLimitNotice(() => props.message)
@@ -2042,25 +1917,11 @@ function AssistantFooter(props: { message: SessionMessageAssistant }) {
         </Switch>
       </Show>
       <AssistantRetry retry={props.message.retry} />
-      <box paddingLeft={3} marginTop={props.message.retry || (props.message.error && !interrupted()) ? 1 : 0}>
-        <text>
-          <span style={{ fg: props.message.error ? theme.text.muted : local.agent.color(props.message.agent) }}>
-            {Locale.titlecase(props.message.agent)}
-          </span>
-          <Show when={ctx.terminal.width >= 28}>
-            <span style={{ fg: theme.text.muted }}> · {model()}</span>
-          </Show>
-          <Show when={duration() && (ctx.terminal.width < 28 || ctx.terminal.width >= 36)}>
-            <span style={{ fg: theme.text.muted }}> · {Locale.duration(duration())}</span>
-          </Show>
-          <Show when={config.data.session.tps && tokensPerSecond()}>
-            {(value) => <span style={{ fg: theme.text.muted }}> · {value().toFixed(1)} tok/s</span>}
-          </Show>
-          <Show when={interrupted()}>
-            <span style={{ fg: theme.text.muted }}> · interrupted</span>
-          </Show>
-        </text>
-      </box>
+      <Show when={interrupted()}>
+        <box paddingLeft={3} marginTop={props.message.retry ? 1 : 0}>
+          <text fg={theme.text.muted}>interrupted</text>
+        </box>
+      </Show>
     </>
   )
 }
@@ -2362,7 +2223,7 @@ function UserMessage(props: { message: SessionMessageUser }) {
   const theme = useTheme()
   const mode = themes.mode
   const [hover, setHover] = createSignal(false)
-  const color = createMemo(() => local.agent.color(data.session.get(ctx.sessionID)?.agent ?? "build"))
+  const color = createMemo(() => local.agent.color(data.session.get(ctx.sessionID)?.agent ?? "tutor"))
   const delivery = createMemo(() => ctx.pendingDelivery(props.message.id))
   const dialog = useDialog()
   const renderer = useRenderer()
@@ -3289,7 +3150,6 @@ function Subagent(props: ToolProps) {
   const sessionID = createMemo(() => stringValue(props.metadata.sessionID) ?? stringValue(props.metadata.sessionId))
   const description = createMemo(() => stringValue(props.input.description))
   const continuation = createMemo(() => Boolean(stringValue(props.input.sessionID)))
-  const model = createMemo(() => subagentModelLabel(stringValue(props.input.model), data.location.model.list()))
   const isRunning = createMemo(() => {
     const id = sessionID()
     return props.part.state.status === "running" || Boolean(id && data.session.status(id) === "running")
@@ -3313,7 +3173,7 @@ function Subagent(props: ToolProps) {
         ) : undefined
       }
     >
-      {`${continuation() ? "Continue subagent" : `${Locale.titlecase(stringValue(props.input.agent) ?? stringValue(props.input.subagent_type) ?? "General")} Subagent`} — ${description() ?? "Subagent"}${model() ? ` · ${model()}` : ""}`}
+      {`${continuation() ? "Continue subagent" : `${Locale.titlecase(stringValue(props.input.agent) ?? stringValue(props.input.subagent_type) ?? "General")} Subagent`} — ${description() ?? "Subagent"}`}
     </InlineTool>
   )
 }

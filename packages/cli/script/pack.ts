@@ -18,8 +18,7 @@ await mkdir(archiveDir, { recursive: true })
 await packDistribution({
   root,
   name: pkg.name,
-  command: "opencode",
-  legacyCommand: "opencode2",
+  command: "sigmabot",
   binary: "opencode",
   packagePrefix: "@opencode/cli-",
   archive: (target) => target.startsWith("linux-"),

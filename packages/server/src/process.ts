@@ -224,7 +224,7 @@ function unavailable(status: Status.State) {
       {
         code: "service_failed",
         message: "The background service could not start.",
-        action: "Run `opencode service restart` after checking the service logs.",
+        action: "Run `sigmabot service restart` after checking the service logs.",
       },
       { status: 503 },
     )

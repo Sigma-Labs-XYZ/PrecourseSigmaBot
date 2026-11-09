@@ -423,15 +423,6 @@ export function RunFooterView(props: RunFooterViewProps) {
     if (!footerDetails() || !prompt() || shell()) return undefined
     return props.currentAgent()
   })
-  const modelStatus = createMemo(() => {
-    const current = model()?.model ?? props.state().model.trim()
-    if (!footerDetails() || !prompt() || shell() || !current) return
-    return {
-      model: current,
-      provider: model()?.provider,
-      variant: props.currentVariant(),
-    }
-  })
   const statusColor = createMemo(() => {
     if (exiting()) {
       return theme().error
@@ -477,7 +468,6 @@ export function RunFooterView(props: RunFooterViewProps) {
     }
   })
   const statuslineLayout = createMemo(() => {
-    const info = modelStatus()
     return footerStatuslinePolicy({
       width: width(),
       mono: props.mono,
@@ -487,7 +477,7 @@ export function RunFooterView(props: RunFooterViewProps) {
       },
       escape: shell() && !takeover() ? { key: "esc", label: "normal" } : undefined,
       work: contextHintCandidates(),
-      model: info ? { name: info.model, variant: info.variant } : undefined,
+      model: undefined,
       agent: agentStatus(),
       context:
         footerDetails() && contextUsage()
@@ -497,7 +487,7 @@ export function RunFooterView(props: RunFooterViewProps) {
             }
           : undefined,
       cost: footerDetails() ? cost() : undefined,
-      provider: info?.provider,
+      provider: undefined,
       menu: commandHint(),
       spinner: busy() ? (props.mono ? "*" : "\u25aa") : undefined,
     })

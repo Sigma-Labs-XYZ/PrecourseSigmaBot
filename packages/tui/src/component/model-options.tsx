@@ -1,5 +1,5 @@
 import type { ModelInfo } from "@opencode/client"
-import { For, Show } from "solid-js"
+import { For } from "solid-js"
 import { useTheme } from "../context/theme"
 import { modelPreferenceKey } from "../model-preference"
 
@@ -45,22 +45,9 @@ export function FavoriteMarker() {
   return <span style={{ fg: theme.text.formfield.selected }}>*</span>
 }
 
-/**
- * Price, input modalities, context window and reasoning support for the selected model, after what its usage limits
- * leave when `usage` says so.
- */
-export function ModelDetail(props: {
-  model: ModelInfo
-  price?: boolean
-  usage?: { readonly text: string; readonly danger?: boolean }
-}) {
+/** Input modalities, context window and reasoning support for the selected model. */
+export function ModelDetail(props: { model: ModelInfo }) {
   const theme = useTheme().surface("dialog")
-  const price = () => {
-    if (isFreeModel(props.model)) return "Free"
-    const cost = props.model.cost[0]
-    if (!cost) return ""
-    return `$${dollars(cost.input)}/$${dollars(cost.output)}`
-  }
   const facts = () =>
     [
       props.model.capabilities.input.map(modality).join(", "),
@@ -79,34 +66,7 @@ export function ModelDetail(props: {
       </For>
     </text>
   )
-  return (
-    <Show
-      when={props.usage}
-      fallback={
-        <box flexDirection="row" justifyContent={props.price === false ? "flex-start" : "space-between"} gap={2}>
-          <Show when={props.price !== false}>
-            <text fg={theme.text.faint} wrapMode="none">
-              {price()}
-            </text>
-          </Show>
-          {list(facts())}
-        </box>
-      }
-    >
-      {(usage) => (
-        <box flexDirection="row" justifyContent="space-between" gap={2}>
-          <text fg={usage().danger ? theme.text.feedback.error.base : theme.text.muted} wrapMode="none">
-            {usage().text}
-          </text>
-          {list([...(price() && price() !== "Free" ? [`${price()} per 1M`] : [price()]), ...facts()].filter(Boolean))}
-        </box>
-      )}
-    </Show>
-  )
-}
-
-function dollars(value: number) {
-  return String(Number(value.toFixed(2)))
+  return <box flexDirection="row">{list(facts())}</box>
 }
 
 function modality(value: string) {

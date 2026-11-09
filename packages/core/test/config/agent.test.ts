@@ -177,6 +177,7 @@ permissions:
       const agents = yield* Agent.Service
       const global = yield* Global.Service
       yield* AgentPlugin.Plugin.effect(host({ agent: agentHost(agents) }))
+      const builtIn = [...((yield* agents.get(Agent.defaultID))?.permissions ?? [])]
 
       const entries = [
         new Document({
@@ -209,7 +210,7 @@ permissions:
           info: decode({
             permissions: [{ action: "*", resource: "*", effect: "allow" }],
             agents: {
-              build: {
+              tutor: {
                 permissions: [
                   { action: "external_directory", resource: "*", effect: "allow" },
                   {
@@ -234,8 +235,7 @@ permissions:
       const opencodeData = path.join(global.home, ".local", "share", "opencode", "*")
       const mcpAuth = path.join(global.home, ".local", "share", "opencode", "mcp-auth.json")
       expect(build.permissions).toEqual([
-        ...defaultPermissions,
-        { action: "question", resource: "*", effect: "allow" },
+        ...builtIn,
         { action: "shell", resource: "*", effect: "ask" },
         { action: "edit", resource: "*", effect: "ask" },
         { action: "webfetch", resource: "*", effect: "ask" },

@@ -82,7 +82,7 @@ describe("subagent observer lifetime", () => {
           const llm = yield* TestLLM.Test
           const parent = yield* sessions.create({
             location: { directory: AbsolutePath.make(parentDir.path) },
-            agent: Agent.ID.make("build"),
+            agent: Agent.defaultID,
             model: Model.Ref.make({ id: Model.ID.make("parent"), providerID: Provider.ID.make("test") }),
           })
           const child = yield* sessions.create({ parentID: parent.id, agent: Agent.ID.make("reviewer") })

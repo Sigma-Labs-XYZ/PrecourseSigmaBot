@@ -6,9 +6,9 @@ import type { SessionMessageInfo } from "@opencode/client"
 import { createEventStream, createFetch, directory, json } from "./fixture/tui-client"
 import { tmpdir } from "./fixture/fixture"
 
-// Regression: a thought group mounted by tail-first backfill (older rows revealed
-// after scrolling to the top) must still toggle when its disclosure is clicked.
-test("clicking a backfilled thought group toggles it", async () => {
+// Regression: thoughts mounted by tail-first backfill (older rows revealed
+// after scrolling to the top) must stay hidden when thinking is hidden.
+test("backfilled thoughts stay hidden", async () => {
   await using state = await tmpdir()
   const setup = await createTestRenderer({ width: 112, height: 34, kittyKeyboard: true })
   await setup.renderer.setupTerminal()
@@ -72,12 +72,10 @@ test("clicking a backfilled thought group toggles it", async () => {
     setup.mockInput.pressKey("g", { ctrl: true })
     await setup.waitForFrame((frame) => frame.includes("Turn 00 prompt"))
     await setup.waitForVisualIdle({ quietFrames: 3 })
-    const lines = setup.captureCharFrame().split("\n")
-    const row = lines.findIndex((line) => line.includes("+ Thought: Turn 0"))
-    expect(row).toBeGreaterThan(0)
-    await setup.mockMouse.click(6, row)
-    await setup.waitForVisualIdle({ quietFrames: 3 })
-    expect(setup.captureCharFrame()).toContain("A fixed thought.")
+    const frame = setup.captureCharFrame()
+    expect(frame).toContain("Turn 00 answer")
+    expect(frame).not.toContain("Thought")
+    expect(frame).not.toContain("A fixed thought.")
   } finally {
     setup.renderer.destroy()
     await task

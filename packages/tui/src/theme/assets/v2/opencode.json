@@ -136,11 +136,11 @@
       "link": "$hue.interactive.200",
       "linkText": "$hue.cyan.200",
       "code": "$hue.green.200",
-      "blockQuote": "#e5c07b",
-      "emphasis": "#e5c07b",
-      "strong": "#f5a742",
+      "blockQuote": "$hue.neutral.400",
+      "emphasis": "$hue.neutral.200",
+      "strong": "$hue.neutral.200",
       "horizontalRule": "$hue.neutral.400",
-      "listItem": "$hue.interactive.200",
+      "listItem": "$hue.neutral.400",
       "listEnumeration": "$hue.cyan.200",
       "image": "$hue.interactive.200",
       "imageText": "$hue.cyan.200",
@@ -182,15 +182,15 @@
         "900": "#fff2f0"
       },
       "orange": {
-        "100": "#c7811e",
-        "200": "#d68c27",
-        "300": "#df9a44",
-        "400": "#e8a85c",
-        "500": "#f1b671",
-        "600": "#fac386",
-        "700": "#fcd4a8",
-        "800": "#fee3c7",
-        "900": "#fef3e7"
+        "100": "#b8431a",
+        "200": "#d9602f",
+        "300": "#ee7c4b",
+        "400": "#ff9a67",
+        "500": "#ffad82",
+        "600": "#ffc0a0",
+        "700": "#ffd3bc",
+        "800": "#ffe4d6",
+        "900": "#fff4ee"
       },
       "green": {
         "100": "#1f8c44",
@@ -237,7 +237,7 @@
         "900": "#f6f3ff"
       },
       "accent": "$hue.orange",
-      "interactive": "$hue.blue",
+      "interactive": "$hue.orange",
       "neutral": "$hue.gray"
     },
     "categorical": [
@@ -295,9 +295,9 @@
       "type": "#b0851f"
     },
     "markdown": {
-      "blockQuote": "#b0851f",
-      "emphasis": "#b0851f",
-      "strong": "$hue.accent.200"
+      "blockQuote": "$hue.neutral.400",
+      "emphasis": "$hue.neutral.200",
+      "strong": "$hue.neutral.200"
     }
   },
   "dark": {
@@ -325,15 +325,15 @@
         "900": "#280207"
       },
       "orange": {
-        "100": "#fddac5",
-        "200": "#fab283",
-        "300": "#d8976c",
-        "400": "#b67c56",
-        "500": "#966341",
-        "600": "#774a2c",
-        "700": "#593319",
-        "800": "#3d1d06",
-        "900": "#1f0b01"
+        "100": "#ffd1bb",
+        "200": "#ff9a67",
+        "300": "#d9805a",
+        "400": "#b36749",
+        "500": "#8c4f38",
+        "600": "#663828",
+        "700": "#472519",
+        "800": "#2e150b",
+        "900": "#1a0a04"
       },
       "green": {
         "100": "#96f7a7",

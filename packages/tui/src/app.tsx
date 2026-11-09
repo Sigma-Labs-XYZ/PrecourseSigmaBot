@@ -57,15 +57,15 @@ import { StartupLoading } from "./component/startup-loading"
 import { DevToolsBar } from "./component/devtools-bar"
 import { Reconnecting } from "./component/reconnecting"
 import { MigrationOverlay } from "./component/migration-overlay"
+import { SigmaLoginGate } from "./component/sigma-login-gate"
+import type { Settings } from "./sigma-auth"
 import { DataProvider, useData } from "./context/data"
 import { SessionTabsProvider, useSessionTabs } from "./context/session-tabs"
 import { LocationProvider, useLocation } from "./context/location"
 import { LocalProvider, useLocal } from "./context/local"
 import { PermissionProvider } from "./context/permission"
 import { DialogModel } from "./component/dialog-model"
-import { useConnected } from "./component/use-connected"
 import { DialogMcp } from "./component/dialog-mcp"
-import { DialogUsage } from "./component/usage"
 import { DialogStatus } from "./component/dialog-status"
 import { DialogConfig } from "./component/dialog-config"
 import { DialogDebug } from "./component/dialog-debug"
@@ -156,7 +156,6 @@ const appBindingCommands = [
   "model.cycle_favorite_reverse",
   "agent.list",
   "mcp.list",
-  "usage.show",
   "agent.cycle",
   "agent.cycle.reverse",
   "variant.cycle",
@@ -208,6 +207,8 @@ export type TuiInput = {
     | undefined
   >
   log?: LogSink
+  // When set, blocks the app until the user signs in with a Sigma Labs account on this Auth0 tenant.
+  signIn?: Settings
 }
 
 export const run = Effect.fn("Tui.run")(function* (input: TuiInput) {
@@ -417,35 +418,37 @@ export const run = Effect.fn("Tui.run")(function* (input: TuiInput) {
                                                           source={createThemeSource(global.config)}
                                                         >
                                                           <ThemeErrorToast />
-                                                          <ClientMcp />
-                                                          <LocalProvider>
-                                                            <PromptStashProvider>
-                                                              <DialogProvider>
-                                                                <FrecencyProvider>
-                                                                  <PromptHistoryProvider>
-                                                                    <PromptRefProvider>
-                                                                      <EditorContextProvider>
-                                                                        <AttentionProvider>
-                                                                          <UpdateNotificationProvider
-                                                                            updater={input.updater}
-                                                                          >
-                                                                            <PanelProvider>
-                                                                              <PluginProvider
-                                                                                packages={input.packages}
-                                                                                directories={pluginDirectories}
-                                                                              >
-                                                                                <App />
-                                                                              </PluginProvider>
-                                                                            </PanelProvider>
-                                                                          </UpdateNotificationProvider>
-                                                                        </AttentionProvider>
-                                                                      </EditorContextProvider>
-                                                                    </PromptRefProvider>
-                                                                  </PromptHistoryProvider>
-                                                                </FrecencyProvider>
-                                                              </DialogProvider>
-                                                            </PromptStashProvider>
-                                                          </LocalProvider>
+                                                          <SigmaLoginGate settings={input.signIn}>
+                                                            <ClientMcp />
+                                                            <LocalProvider>
+                                                              <PromptStashProvider>
+                                                                <DialogProvider>
+                                                                  <FrecencyProvider>
+                                                                    <PromptHistoryProvider>
+                                                                      <PromptRefProvider>
+                                                                        <EditorContextProvider>
+                                                                          <AttentionProvider>
+                                                                            <UpdateNotificationProvider
+                                                                              updater={input.updater}
+                                                                            >
+                                                                              <PanelProvider>
+                                                                                <PluginProvider
+                                                                                  packages={input.packages}
+                                                                                  directories={pluginDirectories}
+                                                                                >
+                                                                                  <App />
+                                                                                </PluginProvider>
+                                                                              </PanelProvider>
+                                                                            </UpdateNotificationProvider>
+                                                                          </AttentionProvider>
+                                                                        </EditorContextProvider>
+                                                                      </PromptRefProvider>
+                                                                    </PromptHistoryProvider>
+                                                                  </FrecencyProvider>
+                                                                </DialogProvider>
+                                                              </PromptStashProvider>
+                                                            </LocalProvider>
+                                                          </SigmaLoginGate>
                                                         </ThemeProvider>
                                                       </SessionTerminalsProvider>
                                                     </SessionTabsProvider>
@@ -639,14 +642,14 @@ function App() {
     if (!terminalTitleEnabled()) return
 
     if (route.data.type === "home") {
-      setTerminalTitle(renderer, "OpenCode")
+      setTerminalTitle(renderer, "SigmaBot")
       return
     }
 
     if (route.data.type === "session") {
       const title = session?.title
       if (!title || isFallbackTitle(title)) {
-        setTerminalTitle(renderer, "OpenCode")
+        setTerminalTitle(renderer, "SigmaBot")
         return
       }
 
@@ -746,7 +749,6 @@ function App() {
       .catch(toast.error)
   })
 
-  const connected = useConnected()
   const appCommands = createMemo(() =>
     [
       {
@@ -826,7 +828,7 @@ function App() {
         name: "open.menu",
         title: "Open session or project",
         category: "Session",
-        slash: { name: "open", aliases: ["projects", "project"] },
+        slash: { name: "open" },
         run: () => {
           if (dialog.key === DialogOpenKey) return
           dialog.replace(() => <DialogOpen sessions={openSessions()} onLoad={setOpenSessions} />, undefined, {
@@ -900,9 +902,8 @@ function App() {
       {
         name: "model.list",
         title: "Switch model",
-        suggested: true,
         category: "Agent",
-        slash: { name: "models" },
+        palette: undefined,
         run: () => {
           dialog.replace(() => <DialogModel />)
         },
@@ -953,19 +954,10 @@ function App() {
         },
       },
       {
-        name: "usage.show",
-        title: "View usage",
-        category: "Agent",
-        slash: { name: "usage" },
-        run: () => {
-          dialog.replace(() => <DialogUsage />)
-        },
-      },
-      {
         name: "mcp.list",
         title: "MCP servers",
         category: "Agent",
-        slash: { name: "mcps" },
+        palette: undefined,
         run: () => {
           dialog.replace(() => <DialogMcp />)
         },
@@ -983,6 +975,7 @@ function App() {
         name: "variant.cycle",
         title: "Variant cycle",
         category: "Agent",
+        palette: undefined,
         run: () => {
           local.model.variant.cycle()
         },
@@ -991,8 +984,7 @@ function App() {
         name: "variant.list",
         title: "Switch model variant",
         category: "Agent",
-        palette: local.model.variant.list().length === 0 ? undefined : (true as const),
-        slash: { name: "variants", aliases: ["thinking", "effort"] },
+        palette: undefined,
         run: () => {
           if (local.model.variant.list().length === 0) {
             return toast.show({
@@ -1016,8 +1008,7 @@ function App() {
       {
         name: "provider.connect",
         title: "Connect an integration",
-        suggested: !connected(),
-        slash: { name: "connect" },
+        palette: undefined,
         run: () => {
           dialog.replace(() => (
             <DialogIntegration
@@ -1032,7 +1023,7 @@ function App() {
             {
               name: "opencode.highlights",
               title: "Show release highlights",
-              slash: { name: "highlights" },
+              palette: undefined,
               run: () => dialog.replace(() => <DialogHighlights version={app.version} items={app.highlights ?? []} />),
               category: "System",
             },
@@ -1051,7 +1042,7 @@ function App() {
       {
         name: "opencode.status",
         title: "View status",
-        slash: { name: "status" },
+        palette: undefined,
         run: () => {
           dialog.replace(() => <DialogStatus />)
         },
@@ -1061,8 +1052,8 @@ function App() {
         ? [
             {
               name: "opencode.update",
-              title: "Update OpenCode",
-              slash: { name: "update" },
+              title: "Update SigmaBot",
+              slash: { name: "upgrade" },
               run: () => updater.open?.("manual"),
               category: "System",
             },
@@ -1071,7 +1062,7 @@ function App() {
       {
         name: "server.pair",
         title: "Pair device",
-        slash: { name: "pair", aliases: ["web"] },
+        palette: undefined,
         run: () => {
           dialog.replace(() => <DialogPair />)
         },
@@ -1082,7 +1073,7 @@ function App() {
             {
               name: "service.restart",
               title: "Restart service",
-              slash: { name: "restart" },
+              palette: undefined,
               run: async () => {
                 const restart = client.restart
                 if (!restart) return
@@ -1101,7 +1092,7 @@ function App() {
       {
         name: "location.reload",
         title: "Reload configuration",
-        slash: { name: "reload" },
+        palette: undefined,
         run: async () => {
           dialog.clear()
           toast.show({ variant: "info", message: "Reloading configuration…", duration: 30000 })
@@ -1117,7 +1108,7 @@ function App() {
       {
         name: "opencode.debug",
         title: "View debug info",
-        slash: { name: "debug" },
+        palette: undefined,
         run: () => {
           dialog.replace(() => <DialogDebug />)
         },
@@ -1193,6 +1184,7 @@ function App() {
         name: "app.console",
         title: "Toggle console",
         category: "System",
+        palette: undefined,
         run: () => {
           renderer.console.toggle()
           dialog.clear()
@@ -1467,7 +1459,7 @@ function App() {
           <PaneResizeHandle resize={tabsResize} left={tabsResize.size() - 1} />
         </Show>
       </box>
-      <Show when={devtools() && !(route.data.type === "plugin" && route.data.id === "opencode.stats")}>
+      <Show when={devtools()}>
         <DevToolsBar />
       </Show>
       <Show when={!startup.skipInitialLoading}>

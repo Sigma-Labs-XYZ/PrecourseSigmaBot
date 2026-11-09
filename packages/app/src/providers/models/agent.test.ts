@@ -6,14 +6,14 @@ test("hasCustomAgent detects only explicitly custom agents", () => {
   expect(hasCustomAgent([{ native: true }, {}])).toBe(false)
 })
 
-const agents = [{ name: "plan" }, { name: "build" }, { name: "custom" }]
+const agents = [{ name: "coach" }, { name: "tutor" }, { name: "custom" }]
 
 const rows: { name: string; agents: { name: string }[]; requested?: string; expected: string }[] = [
   { name: "the requested available agent", agents, requested: "custom", expected: "custom" },
-  { name: "build without a request", agents, requested: undefined, expected: "build" },
-  { name: "build for a missing agent", agents, requested: "missing", expected: "build" },
+  { name: "tutor without a request", agents, requested: undefined, expected: "tutor" },
+  { name: "tutor for a missing agent", agents, requested: "missing", expected: "tutor" },
   {
-    name: "the first agent when build is unavailable",
+    name: "the first agent when tutor is unavailable",
     agents: [{ name: "custom" }],
     requested: "missing",
     expected: "custom",

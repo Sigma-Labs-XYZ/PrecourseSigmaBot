@@ -43,19 +43,19 @@ export function generateSyntax(theme: ResolvedThemeTokens, owner: NativeResource
     ),
     rule(["keyword.directive", "keyword.modifier", "keyword.exception"], syntax.keyword, { italic: true }),
     rule(["punctuation.special", "tag.delimiter"], syntax.operator),
+    // Terminals cannot enlarge text, so h1 and h2 render as filled bars; h3 and below stay bold accent text.
+    rule(["markup.heading.1", "markup.heading.2"], theme.hue.neutral[800], {
+      bold: true,
+      background: markdown.heading,
+    }),
     rule(
-      [
-        "markup.heading",
-        "markup.heading.2",
-        "markup.heading.3",
-        "markup.heading.4",
-        "markup.heading.5",
-        "markup.heading.6",
-      ],
+      ["markup.heading", "markup.heading.3", "markup.heading.4", "markup.heading.5", "markup.heading.6"],
       markdown.heading,
-      { bold: true },
+      {
+        bold: true,
+        underline: true,
+      },
     ),
-    rule(["markup.heading.1"], markdown.heading, { bold: true, underline: true }),
     rule(["markup.bold", "markup.strong"], markdown.strong, { bold: true }),
     rule(["markup.italic"], markdown.emphasis, { italic: true }),
     rule(["markup.list"], markdown.listItem),

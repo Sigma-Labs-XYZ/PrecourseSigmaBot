@@ -35,16 +35,19 @@ const SubmissionFields = Schema.Struct({
   Summary: Schema.optional(Schema.String),
 })
 
-const TraineeFields = Schema.Struct({ "GitHub Handle": Schema.optional(Schema.String) })
+const TraineeFields = Schema.Struct({ SigmaID: Schema.optional(Schema.String) })
 
 const decodeSubmissions = HttpClientResponse.schemaBodyJson(Page(SubmissionFields))
 const decodeTrainees = HttpClientResponse.schemaBodyJson(Page(TraineeFields))
 
-/** Request plumbing shared by every table: auth, timeout, and finding the trainee's row by GitHub handle. */
-function connect(
-  http: HttpClient.HttpClient,
-  input: { readonly token: string; readonly handle: string; readonly endpoint?: string },
-) {
+/**
+ * Who the trainee is: the verified Sigma Labs email from their sign-in, which is the SigmaID of their Trainees row.
+ * Read on every use because the trainee may sign in after SigmaBot has started.
+ */
+export type Email = Effect.Effect<string | undefined>
+
+/** Request plumbing shared by every table: auth, timeout, and finding the trainee's row by their email. */
+function connect(http: HttpClient.HttpClient, input: { readonly token: string; readonly endpoint?: string }) {
   const client = HttpClient.filterStatusOk(http)
   const base = `${input.endpoint ?? ENDPOINT}/v0/${BASE}`
   const authorized = (request: HttpClientRequest.HttpClientRequest) =>
@@ -54,19 +57,18 @@ function connect(
       Effect.timeoutOrElse({ duration: TIMEOUT, orElse: () => Effect.fail(new Error("Airtable request timed out")) }),
       Effect.mapError((error) => (error instanceof Error ? error : new Error(String(error)))),
     )
-  // Formula strings only ever hold a validated GitHub handle, so nothing needs escaping.
-  const formula = `LOWER({GitHub Handle})="${input.handle.toLowerCase()}"`
 
-  const traineeID = Effect.fn("SigmaBotAirtable.traineeID")(function* () {
+  const traineeID = Effect.fn("SigmaBotAirtable.traineeID")(function* (email: string) {
     const page = yield* run(
       client
         .execute(
           authorized(
             HttpClientRequest.get(`${base}/${TRAINEES}`).pipe(
               HttpClientRequest.setUrlParams({
-                filterByFormula: formula,
+                // The email comes from a local file, so quotes and backslashes are escaped out of the formula.
+                filterByFormula: `LOWER({SigmaID})="${email.toLowerCase().replace(/[\\"]/g, "\\$&")}"`,
                 maxRecords: "1",
-                "fields[]": "GitHub Handle",
+                "fields[]": "SigmaID",
               }),
             ),
           ),
@@ -76,18 +78,21 @@ function connect(
     return page.records[0]?.id
   })
 
-  return { client, base, authorized, run, formula, traineeID }
+  return { client, base, authorized, run, traineeID }
 }
 
 /**
- * The shared record of attempts in Airtable for one trainee, identified by their GitHub username. The token is
- * built into the client, as the course design intends: trainees need no Airtable access of their own.
+ * The shared record of attempts in Airtable for one trainee. Attempts are found by their GitHub username and linked
+ * to the trainee's row by their sign-in email. The token is built into the client, as the course design intends:
+ * trainees need no Airtable access of their own.
  */
 export function remote(
   http: HttpClient.HttpClient,
-  input: { readonly token: string; readonly handle: string; readonly endpoint?: string },
+  input: { readonly token: string; readonly handle: string; readonly email: Email; readonly endpoint?: string },
 ) {
-  const { client, base, authorized, run, formula, traineeID } = connect(http, input)
+  const { client, base, authorized, run, traineeID } = connect(http, input)
+  // Formula strings only ever hold a validated GitHub handle, so nothing needs escaping.
+  const formula = `LOWER({GitHub Handle})="${input.handle.toLowerCase()}"`
 
   const list = Effect.fn("SigmaBotAirtable.list")(function* () {
     const all: (SigmaBotProgress.Attempt & { readonly course: string })[] = []
@@ -129,8 +134,9 @@ export function remote(
   const create = Effect.fn("SigmaBotAirtable.create")(function* (
     submission: SigmaBotProgress.Submission & { readonly at: string },
   ) {
-    // A handle with no Trainees row still gets its attempt recorded; a coach can link it later.
-    const trainee = yield* traineeID().pipe(Effect.orElseSucceed(() => undefined))
+    // An attempt from someone with no Trainees row, or not signed in, is still recorded; a coach can link it later.
+    const email = yield* input.email
+    const trainee = email ? yield* traineeID(email).pipe(Effect.orElseSucceed(() => undefined)) : undefined
     yield* run(
       client
         .execute(
@@ -172,14 +178,17 @@ const BATCH = 10
  */
 export function transcripts(
   http: HttpClient.HttpClient,
-  input: { readonly token: string; readonly handle: string; readonly endpoint?: string },
+  input: { readonly token: string; readonly email: Email; readonly endpoint?: string },
 ) {
   const { client, base, authorized, run, traineeID } = connect(http, input)
 
   const upsert = Effect.fn("SigmaBotAirtable.upsertTranscripts")(function* (rows: readonly SigmaBotTranscript.Row[]) {
     if (rows.length === 0) return
-    // A handle with no Trainees row still gets its transcripts backed up; a coach can link it later.
-    const trainee = yield* traineeID().pipe(Effect.orElseSucceed(() => undefined))
+    // Rows are only sent for a signed-in trainee; failing keeps them queued rather than saving them unattributed.
+    const email = yield* input.email
+    if (!email) return yield* Effect.fail(new Error("Not signed in yet, so there is no trainee to back up for"))
+    // An email with no Trainees row still gets its transcripts backed up; a coach can link it later.
+    const trainee = yield* traineeID(email).pipe(Effect.orElseSucceed(() => undefined))
     for (let start = 0; start < rows.length; start += BATCH)
       yield* run(
         client

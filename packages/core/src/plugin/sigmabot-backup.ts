@@ -1,7 +1,6 @@
 export * as SigmaBotBackupPlugin from "./sigmabot-backup.js"
 
 import { define } from "@opencode/plugin/effect/plugin"
-import { AppProcess } from "@opencode/util/process"
 import { DateTime, Duration, Effect, Schedule, Semaphore, Stream } from "effect"
 import { HttpClient } from "effect/http"
 import { Bus } from "../bus.js"
@@ -9,6 +8,7 @@ import { Location } from "../location.js"
 import { AbsolutePath } from "../schema.js"
 import { Session } from "../session.js"
 import { SessionEvent } from "../session/event.js"
+import { SigmaBotAccount } from "./sigmabot-account.js"
 import { SigmaBotAirtable } from "./sigmabot-airtable.js"
 import { SigmaBotTranscript } from "./sigmabot-transcript.js"
 
@@ -22,24 +22,23 @@ const PAGE = 100
 
 /**
  * Backs up the trainee's chat transcripts to Airtable: every open chat in one batch every 15 minutes, and a chat's
- * final transcript as soon as it is closed (archived). Does nothing without an Airtable key or a GitHub fork to name
- * the trainee, and never gets in the way of the chat when Airtable cannot be reached.
+ * final transcript as soon as it is closed (archived), under the Sigma Labs email the trainee signed in with. Does
+ * nothing without an Airtable key, waits for the sign-in, and never gets in the way of the chat when Airtable cannot
+ * be reached.
  */
 export const Plugin = define({
   id: "sigmabot.backup",
   effect: Effect.fn(function* (ctx) {
     const location = yield* Location.Service
-    const processes = yield* AppProcess.Service
     const http = yield* HttpClient.HttpClient
     const sessions = yield* Session.Service
     const bus = yield* Bus.Service
     const token = typeof SIGMABOT_AIRTABLE_KEY === "string" ? SIGMABOT_AIRTABLE_KEY : process.env.SIGMABOT_AIRTABLE_KEY
-    const handle = token ? yield* SigmaBotAirtable.handle(processes, location.directory) : undefined
-    if (!token || !handle) return
+    if (!token) return
 
     const sync = SigmaBotTranscript.make({
       storage: ctx.storage,
-      remote: SigmaBotAirtable.transcripts(http, { token, handle }),
+      remote: SigmaBotAirtable.transcripts(http, { token, email: SigmaBotAccount.email() }),
       source: source(sessions, location.directory),
     })
     // The timer, a close, and the final flush can overlap; one backup at a time keeps them from racing.

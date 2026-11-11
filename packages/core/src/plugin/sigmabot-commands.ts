@@ -15,6 +15,7 @@ import { ShellSelect } from "../shell/select.js"
 import { QuestionTool } from "../tool/plugin/question.js"
 import SUBMIT from "./command/sigmabot/submit.txt"
 import UPDATE from "./command/sigmabot/update.txt"
+import { SigmaBotAccount } from "./sigmabot-account.js"
 import { SigmaBotAirtable } from "./sigmabot-airtable.js"
 import { SigmaBotCourse } from "./sigmabot-course.js"
 import { SigmaBotProgress } from "./sigmabot-progress.js"
@@ -69,7 +70,9 @@ export const Plugin = define({
     const handle = airtableKey ? yield* SigmaBotAirtable.handle(processes, location.directory) : undefined
     const progress = SigmaBotProgress.make(
       ctx.storage,
-      airtableKey && handle ? SigmaBotAirtable.remote(http, { token: airtableKey, handle }) : undefined,
+      airtableKey && handle
+        ? SigmaBotAirtable.remote(http, { token: airtableKey, handle, email: SigmaBotAccount.email() })
+        : undefined,
     )
     const rubricKey = typeof SIGMABOT_RUBRIC_KEY === "string" ? SIGMABOT_RUBRIC_KEY : process.env.SIGMABOT_RUBRIC_KEY
     // The template is long instructions for the model, so it goes in as a synthetic message that the UI shows

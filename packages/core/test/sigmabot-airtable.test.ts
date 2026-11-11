@@ -19,7 +19,7 @@ type Row = { id: string; fields: Record<string, unknown> }
 function airtable(options: { readonly failWrites?: boolean } = {}) {
   const requests: { method: string; path: string; auth: string | null; formula: string | null; body?: unknown }[] = []
   const submissions: Row[] = []
-  const trainees: Row[] = [{ id: "recTrainee1", fields: { "GitHub Handle": "Ada-Lovelace" } }]
+  const trainees: Row[] = [{ id: "recTrainee1", fields: { SigmaID: "Ada.Lovelace@sigmalabs.co.uk" } }]
   const server = Bun.serve({
     port: 0,
     async fetch(request) {
@@ -42,9 +42,9 @@ function airtable(options: { readonly failWrites?: boolean } = {}) {
         return Response.json({ id: "recNew", fields: {} })
       }
       if (table === "tbl8470yTXwItb189") {
-        const handle = /="([^"]+)"/.exec(url.searchParams.get("filterByFormula") ?? "")?.[1]
+        const email = /="([^"]+)"/.exec(url.searchParams.get("filterByFormula") ?? "")?.[1]
         return Response.json({
-          records: trainees.filter((row) => String(row.fields["GitHub Handle"]).toLowerCase() === handle),
+          records: trainees.filter((row) => String(row.fields.SigmaID).toLowerCase() === email),
         })
       }
       const handle = /="([^"]+)"/.exec(url.searchParams.get("filterByFormula") ?? "")?.[1]
@@ -89,6 +89,8 @@ function memoryStorage(): StorageDomain {
   }
 }
 
+const signedIn = Effect.succeed<string | undefined>("ada.lovelace@sigmalabs.co.uk")
+
 const submission = (challenge: string, passed: boolean): SigmaBotProgress.Submission => ({
   course: { id: "hm", version: "0.1.0" },
   challenge: { key: challenge, title: `Title of ${challenge}`, module: "shell-and-git" },
@@ -106,7 +108,12 @@ describe("SigmaBotAirtable", () => {
         const http = yield* HttpClient.HttpClient
         const progress = SigmaBotProgress.make(
           memoryStorage(),
-          SigmaBotAirtable.remote(http, { token: "pat123", handle: "ada-lovelace", endpoint: fake.endpoint }),
+          SigmaBotAirtable.remote(http, {
+            token: "pat123",
+            handle: "ada-lovelace",
+            email: signedIn,
+            endpoint: fake.endpoint,
+          }),
         )
 
         expect(yield* progress.record(submission("a/one", false))).toEqual({ attempt: 1, synced: true })
@@ -146,17 +153,42 @@ describe("SigmaBotAirtable", () => {
     ),
   )
 
-  it.live("still records an attempt when the handle has no Trainees row", () =>
+  it.live("still records an attempt when the email has no Trainees row", () =>
     use({}, (fake) =>
       Effect.gen(function* () {
         const http = yield* HttpClient.HttpClient
         const progress = SigmaBotProgress.make(
           memoryStorage(),
-          SigmaBotAirtable.remote(http, { token: "t", handle: "someone-else", endpoint: fake.endpoint }),
+          SigmaBotAirtable.remote(http, {
+            token: "t",
+            handle: "someone-else",
+            email: Effect.succeed("someone@sigmalabs.co.uk"),
+            endpoint: fake.endpoint,
+          }),
         )
         expect((yield* progress.record(submission("a", true))).synced).toBe(true)
         expect(fake.submissions[0]!.fields).not.toHaveProperty("Trainee")
         expect(fake.submissions[0]!.fields["GitHub Handle"]).toBe("someone-else")
+      }),
+    ),
+  )
+
+  it.live("records an attempt without a trainee link until the trainee has signed in", () =>
+    use({}, (fake) =>
+      Effect.gen(function* () {
+        const http = yield* HttpClient.HttpClient
+        const progress = SigmaBotProgress.make(
+          memoryStorage(),
+          SigmaBotAirtable.remote(http, {
+            token: "t",
+            handle: "ada-lovelace",
+            email: Effect.succeed(undefined),
+            endpoint: fake.endpoint,
+          }),
+        )
+        expect((yield* progress.record(submission("a", true))).synced).toBe(true)
+        expect(fake.submissions[0]!.fields).not.toHaveProperty("Trainee")
+        expect(fake.requests.some((request) => request.path.endsWith("tbl8470yTXwItb189"))).toBe(false)
       }),
     ),
   )
@@ -168,7 +200,12 @@ describe("SigmaBotAirtable", () => {
         const storage = memoryStorage()
         const down = SigmaBotProgress.make(
           storage,
-          SigmaBotAirtable.remote(http, { token: "t", handle: "ada-lovelace", endpoint: "http://127.0.0.1:1" }),
+          SigmaBotAirtable.remote(http, {
+            token: "t",
+            handle: "ada-lovelace",
+            email: signedIn,
+            endpoint: "http://127.0.0.1:1",
+          }),
         )
         expect(yield* down.record(submission("a", true))).toEqual({ attempt: 1, synced: false })
         expect((yield* down.attempts("hm", "a")).length).toBe(1)
@@ -176,7 +213,12 @@ describe("SigmaBotAirtable", () => {
 
         const rejected = SigmaBotProgress.make(
           memoryStorage(),
-          SigmaBotAirtable.remote(http, { token: "t", handle: "ada-lovelace", endpoint: fake.endpoint }),
+          SigmaBotAirtable.remote(http, {
+            token: "t",
+            handle: "ada-lovelace",
+            email: signedIn,
+            endpoint: fake.endpoint,
+          }),
         )
         expect(yield* rejected.record(submission("a", false))).toEqual({ attempt: 1, synced: false })
         expect(fake.submissions).toEqual([])

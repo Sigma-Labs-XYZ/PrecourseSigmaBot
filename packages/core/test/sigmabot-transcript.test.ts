@@ -24,7 +24,7 @@ function airtable(options: { readonly failWrites?: boolean } = {}) {
       const body = request.method === "PATCH" ? ((await request.json()) as { records: Record[] }) : undefined
       requests.push({ method: request.method, path: url.pathname, body })
       if (request.method === "GET")
-        return Response.json({ records: [{ id: "recTrainee1", fields: { "GitHub Handle": "ada-lovelace" } }] })
+        return Response.json({ records: [{ id: "recTrainee1", fields: { SigmaID: "ada.lovelace@sigmalabs.co.uk" } }] })
       if (options.failWrites) return new Response("nope", { status: 500 })
       body!.records.forEach((record) => rows.set(String(record.fields["Session ID"]), record))
       return Response.json({ records: [] })
@@ -52,6 +52,8 @@ function memoryStorage(): StorageDomain {
     scan: () => Effect.sync(() => ({ entries: [] })),
   }
 }
+
+const signedIn = Effect.succeed<string | undefined>("ada.lovelace@sigmalabs.co.uk")
 
 const at = DateTime.makeUnsafe(Date.UTC(2026, 10, 11, 9, 30))
 const user = (text: string) =>
@@ -137,7 +139,7 @@ describe("SigmaBotTranscript.make", () => {
           storage: memoryStorage(),
           remote: SigmaBotAirtable.transcripts(http, {
             token: "pat123",
-            handle: "ada-lovelace",
+            email: signedIn,
             endpoint: fake.endpoint,
           }),
         })
@@ -191,7 +193,7 @@ describe("SigmaBotTranscript.make", () => {
         yield* SigmaBotTranscript.make({
           source: fakeChats.source,
           storage: memoryStorage(),
-          remote: SigmaBotAirtable.transcripts(http, { token: "t", handle: "ada-lovelace", endpoint: fake.endpoint }),
+          remote: SigmaBotAirtable.transcripts(http, { token: "t", email: signedIn, endpoint: fake.endpoint }),
         })()
         const sizes = fake.requests
           .filter((request) => request.method === "PATCH")
@@ -211,7 +213,7 @@ describe("SigmaBotTranscript.make", () => {
         yield* SigmaBotTranscript.make({
           source: fakeChats.source,
           storage: memoryStorage(),
-          remote: SigmaBotAirtable.transcripts(http, { token: "t", handle: "ada-lovelace", endpoint: fake.endpoint }),
+          remote: SigmaBotAirtable.transcripts(http, { token: "t", email: signedIn, endpoint: fake.endpoint }),
         })()
         expect(fake.requests.filter((request) => request.method === "PATCH")).toEqual([])
       }),
@@ -228,7 +230,7 @@ describe("SigmaBotTranscript.make", () => {
         const failing = SigmaBotTranscript.make({
           source: fakeChats.source,
           storage,
-          remote: SigmaBotAirtable.transcripts(http, { token: "t", handle: "ada-lovelace", endpoint: fake.endpoint }),
+          remote: SigmaBotAirtable.transcripts(http, { token: "t", email: signedIn, endpoint: fake.endpoint }),
         })
         expect((yield* Effect.exit(failing()))._tag).toBe("Failure")
         expect(fake.rows.size).toBe(0)
@@ -240,7 +242,7 @@ describe("SigmaBotTranscript.make", () => {
               storage,
               remote: SigmaBotAirtable.transcripts(http, {
                 token: "t",
-                handle: "ada-lovelace",
+                email: signedIn,
                 endpoint: healthy.endpoint,
               }),
             })()
@@ -252,7 +254,33 @@ describe("SigmaBotTranscript.make", () => {
     ),
   )
 
-  it.live("still backs up when the handle has no Trainees row", () =>
+  it.live("waits for the trainee to sign in, then backs the chats up", () =>
+    use({}, (fake) =>
+      Effect.gen(function* () {
+        const http = yield* HttpClient.HttpClient
+        const fakeChats = chats()
+        fakeChats.state.set("ses_a", { updated: 1, closed: false, messages: [user("hello")] })
+        const account = { email: undefined as string | undefined }
+        const sync = SigmaBotTranscript.make({
+          source: fakeChats.source,
+          storage: memoryStorage(),
+          remote: SigmaBotAirtable.transcripts(http, {
+            token: "t",
+            email: Effect.sync(() => account.email),
+            endpoint: fake.endpoint,
+          }),
+        })
+        expect((yield* Effect.exit(sync()))._tag).toBe("Failure")
+        expect(fake.requests).toEqual([])
+
+        account.email = "Ada.Lovelace@sigmalabs.co.uk"
+        yield* sync()
+        expect(fake.rows.get("ses_a")!.fields.Trainee).toEqual(["recTrainee1"])
+      }),
+    ),
+  )
+
+  it.live("still backs up when the email has no Trainees row", () =>
     use({}, (fake) =>
       Effect.gen(function* () {
         const http = yield* HttpClient.HttpClient
@@ -273,7 +301,7 @@ describe("SigmaBotTranscript.make", () => {
           storage: memoryStorage(),
           remote: SigmaBotAirtable.transcripts(http, {
             token: "t",
-            handle: "unknown",
+            email: Effect.succeed("unknown@sigmalabs.co.uk"),
             endpoint: `http://127.0.0.1:${noTrainee.port}`,
           }),
         })().pipe(Effect.ensuring(Effect.sync(() => void noTrainee.stop(true))))

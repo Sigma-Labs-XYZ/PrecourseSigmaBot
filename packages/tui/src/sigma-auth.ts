@@ -148,7 +148,7 @@ async function identify(config: Settings, idToken: string) {
       "forbidden_domain",
       `${email} is not a Sigma Labs email address. Sign in with your @${ALLOWED_EMAIL_DOMAIN} account.`,
     )
-  return email
+  return email.trim().toLowerCase()
 }
 
 async function token(config: Settings, body: Record<string, string>) {

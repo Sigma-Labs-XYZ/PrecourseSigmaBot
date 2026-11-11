@@ -3,12 +3,16 @@ export * as SigmaBotCommandPlugin from "./sigmabot-commands.js"
 import { ToolFailure } from "@opencode/ai/effect"
 import type { CommandInvocation } from "@opencode/plugin/effect/command"
 import { define } from "@opencode/plugin/effect/plugin"
+import { CourseMap } from "@opencode/schema/course-map"
 import { AppProcess } from "@opencode/util/process"
 import { Effect, Schema } from "effect"
 import { HttpClient } from "effect/http"
 import fs from "fs/promises"
+import { Form } from "../form.js"
 import { Location } from "../location.js"
+import { Permission } from "../permission.js"
 import { ShellSelect } from "../shell/select.js"
+import { QuestionTool } from "../tool/plugin/question.js"
 import SUBMIT from "./command/sigmabot/submit.txt"
 import UPDATE from "./command/sigmabot/update.txt"
 import { SigmaBotAirtable } from "./sigmabot-airtable.js"
@@ -33,6 +37,12 @@ const ChallengeInput = Schema.Struct({
   }),
 })
 
+const ChooseInput = Schema.Struct({
+  argument: Schema.optionalKey(
+    Schema.String.annotate({ description: "The text the trainee typed after /submit, if any." }),
+  ),
+})
+
 const Score = Schema.Number.check(Schema.isBetween({ minimum: 0, maximum: 1 }))
 
 const RecordInput = Schema.Struct({
@@ -52,6 +62,8 @@ export const Plugin = define({
     const processes = yield* AppProcess.Service
     const shells = yield* ShellSelect.Service
     const http = yield* HttpClient.HttpClient
+    const forms = yield* Form.Service
+    const permission = yield* Permission.Service
     const airtableKey =
       typeof SIGMABOT_AIRTABLE_KEY === "string" ? SIGMABOT_AIRTABLE_KEY : process.env.SIGMABOT_AIRTABLE_KEY
     const handle = airtableKey ? yield* SigmaBotAirtable.handle(processes, location.directory) : undefined
@@ -142,6 +154,66 @@ export const Plugin = define({
     })
 
     yield* ctx.tool.transform((editor) => {
+      editor.add({
+        name: "submission_choose",
+        description:
+          "Shows the trainee the interactive course map, marking which challenges they have passed and which are locked, and returns the challenge key they pick. Only use during /submit, to confirm which challenge to submit.",
+        input: ChooseInput,
+        execute: (input, context) =>
+          Effect.gen(function* () {
+            yield* permission
+              .assert({
+                action: "question",
+                resources: ["*"],
+                sessionID: context.sessionID,
+                agent: context.agent,
+                source: { type: "tool", messageID: context.messageID, id: context.id },
+              })
+              .pipe(Effect.mapError((error) => new ToolFailure({ message: "Permission denied: question", error })))
+            const loaded = yield* course
+            const passed = yield* progress.passed(loaded.id)
+            const statuses = SigmaBotCourse.status(loaded, passed)
+            const located = yield* SigmaBotCourse.locate(processes, loaded, {
+              argument: input.argument ?? "",
+              passed,
+            })
+            const state = yield* forms
+              .ask({
+                sessionID: context.sessionID,
+                title: "Course map",
+                metadata: { kind: CourseMap.KIND, course: SigmaBotCourse.map(loaded, statuses, located) },
+                fields: [
+                  {
+                    key: "challenge",
+                    description: "Which challenge do you want to submit?",
+                    type: "string",
+                    required: true,
+                    custom: false,
+                    default: located.guess?.key,
+                    options: loaded.challenges.map((challenge) => ({ value: challenge.key, label: challenge.title })),
+                  },
+                ],
+              })
+              .pipe(Effect.orDie)
+            // Same defect tunnel as the question tool: a plain dismissal ends the step instead of becoming tool output.
+            if (state.status === "cancelled" && state.message !== undefined)
+              return yield* new ToolFailure({ message: state.message })
+            if (state.status === "cancelled") return yield* Effect.die(new QuestionTool.CancelledError())
+            const key = String(state.answer.challenge)
+            const picked = statuses.find((status) => status.challenge.key === key)
+            if (!picked) return yield* new ToolFailure({ message: `No challenge matches "${key}".` })
+            const label = `${picked.challenge.key} — "${picked.challenge.title}"`
+            return {
+              content:
+                picked.state === "locked"
+                  ? `The trainee picked ${label}, which is locked: ${picked.reason}.`
+                  : picked.state === "passed"
+                    ? `The trainee picked ${label}, which they have already passed.`
+                    : `The trainee picked ${label}.`,
+              metadata: { challenge: picked.challenge.key, state: picked.state },
+            }
+          }),
+      })
       editor.add({
         name: "submission_prepare",
         description:

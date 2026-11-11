@@ -9,6 +9,7 @@ import { oneCellSpinnerStory } from "./one-cell-spinner"
 import { linkClicksStory } from "./link-clicks"
 import { highlightsStory } from "./highlights"
 import { todoStory } from "./todo"
+import { courseMapStory } from "./course-map"
 
 /**
  * A story is a full-screen, fixture-driven simulation of a real production component. Stories own
@@ -28,6 +29,7 @@ const stories: Story[] = [
   linkClicksStory,
   highlightsStory,
   todoStory,
+  courseMapStory,
 ]
 
 function Commands(props: { context: Plugin.Context }) {

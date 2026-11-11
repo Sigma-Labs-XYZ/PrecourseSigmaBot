@@ -12,10 +12,12 @@ $SUBMISSION
 
 If the status above is unavailable, explain the cause in plain words, give one concrete next step and stop.
 
-Otherwise use the `question` tool to ask what they want to submit. Offer the best guess first, marked
-"(Recommended)", then the other open challenges with changes, then "Something else". Never pick for them. If
-they choose a locked challenge, tell them what must be passed first and stop; if they choose one already passed,
-say it has already been passed and ask whether they want to submit it again for practice.
+Otherwise call `submission_choose`, passing the text after /submit as `argument` when there is any. It shows the
+trainee an interactive map of the course, with the best guess highlighted, and returns the challenge they pick.
+Do not ask which challenge with the `question` tool and do not list the challenges yourself. Never pick for them.
+If they pick a locked challenge, tell them what must be passed first and stop; if they pick one already passed,
+say it has already been passed and ask whether they want to submit it again for practice. If the map was
+dismissed, stop.
 
 ## 2. Run the gates
 

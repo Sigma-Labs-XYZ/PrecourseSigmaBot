@@ -4,6 +4,7 @@ import fs from "fs/promises"
 import path from "path"
 import { Effect, Schema } from "effect"
 import { ChildProcess } from "effect/process"
+import type { CourseMap } from "@opencode/schema/course-map"
 import type { AppProcess } from "@opencode/util/process"
 import { gitExecutable } from "../util/git-executable.js"
 
@@ -226,6 +227,27 @@ export function describe(course: Course, statuses: readonly Status[], located: L
     `Challenges (${statuses.length}), in course order:`,
     ...statuses.map(line),
   ].join("\n")
+}
+
+/** The course grouped by module for the interactive map the trainee picks a challenge from. */
+export function map(course: Course, statuses: readonly Status[], located: Located) {
+  return {
+    title: course.title,
+    modules: course.modules.map((module) => ({
+      title: module.title,
+      challenges: statuses
+        .filter((status) => status.challenge.module.id === module.id)
+        .map((status) => ({
+          key: status.challenge.key,
+          title: status.challenge.title,
+          state: status.state,
+          reason: status.reason,
+          changed: located.changed.some((challenge) => challenge.key === status.challenge.key),
+          suggested: located.guess?.key === status.challenge.key,
+          chapter: status.challenge.chapter?.title,
+        })),
+    })),
+  } satisfies CourseMap.Info
 }
 
 const reasons = {

@@ -1,17 +1,20 @@
 import { describe, expect } from "bun:test"
 import fs from "fs/promises"
 import path from "path"
-import { DateTime, Effect, Layer, Schema } from "effect"
+import { Cause, DateTime, Effect, Exit, Layer, Schema } from "effect"
 import { FetchHttpClient } from "effect/http"
 import type { CommandDefinition } from "@opencode/plugin/effect/command"
 import type { StorageDomain } from "@opencode/plugin/effect/storage"
+import { Form } from "@opencode/core/form"
 import { Location } from "@opencode/core/location"
 import { SigmaBotCommandPlugin } from "@opencode/core/plugin/sigmabot-commands"
 import { AbsolutePath } from "@opencode/core/schema"
 import { ShellSelect } from "@opencode/core/shell/select"
 import { Tool } from "@opencode/core/tool"
+import { QuestionTool } from "@opencode/core/tool/plugin/question"
 import type { Info } from "@opencode/schema/tool"
 import { Agent } from "@opencode/schema/agent"
+import { CourseMap } from "@opencode/schema/course-map"
 import { Session } from "@opencode/schema/session"
 import { SessionInbox } from "@opencode/schema/session-inbox"
 import { SessionMessage } from "@opencode/schema/session-message"
@@ -21,6 +24,7 @@ import { git, initGit } from "./fixture/git"
 import { location } from "./fixture/location"
 import { withTempDir } from "./fixture/tmpdir"
 import { testEffect } from "./lib/effect"
+import { permissionLayer } from "./lib/permission"
 import { host } from "./plugin/host"
 
 // These tests exercise the local store only; the Airtable client has its own tests.
@@ -28,11 +32,22 @@ delete process.env.SIGMABOT_AIRTABLE_KEY
 
 const shell = process.platform === "win32" ? "cmd.exe" : "/bin/sh"
 
+// The course map is a form, so the trainee's reply is scripted here.
+const forms = { asked: [] as Form.CreateInput[], reply: { status: "cancelled" } as Form.TerminalState }
+
 // The command and tools spawn git and the test command, so the live clock is used throughout.
 const it = testEffect(
   Layer.mergeAll(
     FetchHttpClient.layer,
     LayerNode.compile(AppProcess.node),
+    permissionLayer({ assert: () => Effect.void }),
+    Layer.mock(Form.Service, {
+      ask: (input) =>
+        Effect.sync(() => {
+          forms.asked.push(input)
+          return forms.reply
+        }),
+    }),
     Layer.succeed(
       ShellSelect.Service,
       ShellSelect.Service.of({
@@ -192,7 +207,7 @@ const boot = Effect.fn(function* (directory: string) {
       Effect.map((result) => String(result.content)),
       Effect.catchTag("Tool.Error", (error) => Effect.succeed(`ERROR: ${error.message}`)),
     )
-  return { prompts, commands, tools, submit, call }
+  return { prompts, commands, tools, submit, call, context }
 })
 
 describe("SigmaBotCommandPlugin /submit", () => {
@@ -208,6 +223,7 @@ describe("SigmaBotCommandPlugin /submit", () => {
         const plugin = yield* boot(path.join(tmp.path, "01-shell"))
         expect([...plugin.commands.keys()].sort()).toEqual(["submit", "update"])
         expect([...plugin.tools.keys()].sort()).toEqual([
+          "submission_choose",
           "submission_prepare",
           "submission_record",
           "submission_rubric",
@@ -296,6 +312,82 @@ describe("SigmaBotCommandPlugin /submit", () => {
         expect(plugin.prompts[0]?.text).toContain("Reason: it is the next challenge the trainee has not passed")
         expect(plugin.prompts[0]?.text).toContain(`- ${KEYS[0]} — "Where am I?" (Shell) [passed]`)
         expect(plugin.prompts[0]?.text).toContain(`- ${KEYS[2]} — "The till" (Python) [open]`)
+      }),
+    ),
+  )
+  it.live("asks the trainee to pick from the course map and reports what they chose", () =>
+    withTempDir((tmp) =>
+      Effect.gen(function* () {
+        yield* Effect.promise(() => course(tmp.path))
+        const plugin = yield* boot(tmp.path)
+        const ask = (challenge: string) => {
+          forms.asked.length = 0
+          forms.reply = { status: "answered", answer: { challenge } }
+          return plugin.call("submission_choose", {})
+        }
+
+        expect(yield* ask(KEYS[2]!)).toBe(
+          `The trainee picked ${KEYS[2]} — "The till", which is locked: the Shell module must be complete first.`,
+        )
+        const form = forms.asked[0]!
+        // The client receives the metadata as JSON, which drops the undefined fields.
+        const wire = (value: unknown) => Schema.decodeUnknownSync(CourseMap.Info)(JSON.parse(JSON.stringify(value)))
+        expect(form.metadata?.kind).toBe(CourseMap.KIND)
+        expect(form.fields.map((field) => field.key)).toEqual(["challenge"])
+        expect(wire(form.metadata?.course)).toEqual({
+          title: "Course",
+          modules: [
+            {
+              title: "Shell",
+              challenges: [
+                { key: KEYS[0], title: "Where am I?", state: "open", changed: false, suggested: true },
+                {
+                  key: KEYS[1],
+                  title: "Reading",
+                  state: "locked",
+                  reason: `"Where am I?" (${KEYS[0]}) must be passed first`,
+                  changed: false,
+                  suggested: false,
+                },
+              ],
+            },
+            {
+              title: "Python",
+              challenges: [
+                {
+                  key: KEYS[2],
+                  title: "The till",
+                  state: "locked",
+                  reason: "the Shell module must be complete first",
+                  changed: false,
+                  suggested: false,
+                },
+              ],
+            },
+          ],
+        })
+
+        yield* plugin.call("submission_record", {
+          challenge: KEYS[0],
+          functional: 1,
+          nonFunctional: 1,
+          quiz: 1,
+          summary: "",
+        })
+        expect(yield* ask(KEYS[0]!)).toContain("which they have already passed.")
+        expect(yield* ask(KEYS[1]!)).toBe(`The trainee picked ${KEYS[1]} — "Reading".`)
+        const modules = wire(forms.asked[0]!.metadata?.course).modules
+        expect(modules[0]!.challenges.map((challenge) => challenge.state)).toEqual(["passed", "open"])
+        expect(modules[0]!.challenges.map((challenge) => challenge.suggested)).toEqual([false, true])
+
+        forms.reply = { status: "cancelled" }
+        const exit = yield* Effect.exit(
+          plugin.tools.get("submission_choose")!.execute({}, plugin.context("tutor")) as Effect.Effect<
+            Tool.Result,
+            Tool.Error
+          >,
+        )
+        expect(Exit.isFailure(exit) && Cause.squash(exit.cause)).toBeInstanceOf(QuestionTool.CancelledError)
       }),
     ),
   )

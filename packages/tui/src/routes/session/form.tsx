@@ -9,7 +9,10 @@ import {
   type ScrollBoxRenderable,
   type TextareaRenderable,
 } from "@opentui/core"
+import { Option, Schema } from "effect"
+import { CourseMap } from "@opencode/schema/course-map"
 import { openUrl } from "@opencode/util/open"
+import { CourseMapPrompt } from "./course-map"
 import { useTheme } from "../../context/theme"
 import type { FormAnswer, FormField, FormValue } from "@opencode/client"
 import { useData, type FormWithLocation } from "../../context/data"
@@ -57,6 +60,24 @@ type FormDraft = {
 const drafts = new Map<string, FormDraft>()
 
 export function FormPrompt(props: { form: FormWithLocation }) {
+  const data = useData()
+  const course =
+    props.form.metadata?.["kind"] === CourseMap.KIND
+      ? Schema.decodeUnknownOption(CourseMap.Info)(props.form.metadata["course"])
+      : Option.none()
+  if (Option.isNone(course)) return <FieldsPrompt form={props.form} />
+  const target = { sessionID: props.form.sessionID, formID: props.form.id }
+  return (
+    <CourseMapPrompt
+      title={props.form.title}
+      course={course.value}
+      onPick={(key) => data.session.form.reply({ ...target, answer: { challenge: key } }, props.form.location)}
+      onDismiss={() => data.session.form.cancel(target, props.form.location)}
+    />
+  )
+}
+
+function FieldsPrompt(props: { form: FormWithLocation }) {
   const data = useData()
   const theme = useTheme()
   const renderer = useRenderer()

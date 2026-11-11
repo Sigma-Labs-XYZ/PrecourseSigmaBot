@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # Runs SigmaBot from source with the OpenRouter and Airtable keys from .env (OPENROUTER_KEY=..., AIRTABLE_KEY=...).
 # Uses a private --standalone server so the keys reach it, instead of the shared background service.
+#
+# /submit only works inside a pre-course fork, so start the session there: pass its folder as the first argument
+# (./dev.sh ~/Code/NewPrecourse), or set COURSE_DIR=... in .env to use it whenever no folder is given.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
@@ -24,6 +27,11 @@ if [[ -z "${SIGMABOT_AIRTABLE_KEY:-}" ]]; then
 fi
 export SIGMABOT_AIRTABLE_KEY
 
+# Folder to start the session in, so /submit finds the course manifest. An explicit folder argument wins.
+if [[ -z "${COURSE_DIR:-}" && -f "$ROOT/.env" ]]; then
+    COURSE_DIR="$(sed -n -E 's/^[[:space:]]*(export[[:space:]]+)?COURSE_DIR[[:space:]]*=[[:space:]]*["'\'']?([^"'\'']*).*$/\2/p' "$ROOT/.env" | tail -n 1)"
+fi
+
 # Auth0 settings from .env (AUTH0_DOMAIN, AUTH0_CLIENT_ID); empty falls back to built-in defaults.
 if [[ -f "$ROOT/.env" ]]; then
     for name in AUTH0_DOMAIN AUTH0_CLIENT_ID; do
@@ -46,4 +54,15 @@ if [[ -n "$stale" ]]; then
 fi
 rm -f "$HOME"/.local/state/opencode/service-*.json
 
-exec bun run dev --standalone "$@"
+# The CLI runs from packages/cli, so a folder has to be absolute to mean what the caller typed.
+start=""
+if [[ $# -gt 0 && -d "$1" ]]; then
+    start="$(cd "$1" && pwd)"
+    shift
+elif [[ -n "${COURSE_DIR:-}" ]]; then
+    COURSE_DIR="${COURSE_DIR/#\~/$HOME}"
+    [[ -d "$COURSE_DIR" ]] || { echo "Error: COURSE_DIR is not a folder: $COURSE_DIR" >&2; exit 1; }
+    start="$(cd "$COURSE_DIR" && pwd)"
+fi
+
+exec bun run dev ${start:+"$start"} --standalone "$@"

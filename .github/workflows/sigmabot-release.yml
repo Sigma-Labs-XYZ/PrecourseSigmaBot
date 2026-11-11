@@ -13,9 +13,8 @@ on:
     branches: [dev]
   workflow_dispatch:
 
-concurrency:
-  group: ${{ github.workflow }}
-  cancel-in-progress: false
+# A newer push cancels the builds of an older run, but never an in-flight release or Marketplace publish: cancelling
+# those could leave a release without its files, so they queue behind each other instead.
 
 permissions:
   contents: read
@@ -45,6 +44,9 @@ jobs:
     needs: plan
     name: build ${{ matrix.target }}
     runs-on: macos-latest
+    concurrency:
+      group: sigmabot-build-${{ github.ref }}-${{ matrix.target }}
+      cancel-in-progress: true
     strategy:
       fail-fast: true
       matrix:
@@ -87,8 +89,13 @@ jobs:
   release:
     needs: [plan, build]
     runs-on: ubuntu-24.04
+    concurrency:
+      group: sigmabot-publish
+      cancel-in-progress: false
     permissions:
       contents: write
+    outputs:
+      published: ${{ steps.publish.outputs.published }}
     env:
       GH_TOKEN: ${{ github.token }}
       VERSION: ${{ needs.plan.outputs.version }}
@@ -103,19 +110,33 @@ jobs:
           path: assets
           pattern: sigmabot-*
           merge-multiple: true
-      - name: Publish release
+      # GITHUB_TOKEN can only tag the branch head (tagging any other commit needs a `workflows` permission it cannot
+      # have), so a run that a newer push has overtaken stops here; the newer run publishes the next version.
+      - id: publish
+        name: Publish release
         run: |
+          head=$(gh api "repos/$GITHUB_REPOSITORY/branches/$GITHUB_REF_NAME" --jq .commit.sha)
+          if [ "$head" != "$GITHUB_SHA" ]; then
+            echo "::notice::Skipping v$VERSION: $GITHUB_REF_NAME has moved on to $head, and a newer run will publish."
+            echo "published=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           cp install assets/install
           (cd assets && shasum -a 256 install sigmabot-*.tar.gz > checksums.txt)
           gh release view "v$VERSION" >/dev/null 2>&1 ||
             gh release create "v$VERSION" --title "v$VERSION" --target "$GITHUB_SHA" --latest \
               --notes "SigmaBot $VERSION (build $GITHUB_RUN_NUMBER)"
           gh release upload "v$VERSION" assets/* --clobber
+          echo "published=true" >> "$GITHUB_OUTPUT"
 
   # Runs after the release so the extension's Install CLI button never points at a missing release.
   extension:
     needs: [plan, release]
+    if: needs.release.outputs.published == 'true'
     runs-on: ubuntu-24.04
+    concurrency:
+      group: sigmabot-publish
+      cancel-in-progress: false
     permissions:
       contents: read
       id-token: write

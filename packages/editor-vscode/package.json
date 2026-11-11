@@ -8,6 +8,7 @@
   "type": "commonjs",
   "license": "MIT",
   "publisher": "SigmaLabsXYZ",
+  "icon": "media/icon.png",
   "engines": {
     "vscode": "^1.90.0"
   },

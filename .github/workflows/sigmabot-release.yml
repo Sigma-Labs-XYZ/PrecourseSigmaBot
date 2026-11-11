@@ -5,6 +5,8 @@ name: sigmabot-release
 # increments on every release. The CLI's update check and the `install` script read the latest release.
 # Repository secrets mirror the names in .env (load them with `gh secret set -f .env`): OPENROUTER_KEY, AIRTABLE_KEY,
 # AUTH0_DOMAIN, AUTH0_CLIENT_ID. Optional: SIGMABOT_RUBRIC_KEY.
+# The VS Code extension is published to the Marketplace with the same version after the release, using Trusted Publishing
+# (OIDC, no PAT). The publisher's policy must name this workflow file and leave the environment empty.
 
 on:
   push:
@@ -109,3 +111,28 @@ jobs:
             gh release create "v$VERSION" --title "v$VERSION" --target "$GITHUB_SHA" --latest \
               --notes "SigmaBot $VERSION (build $GITHUB_RUN_NUMBER)"
           gh release upload "v$VERSION" assets/* --clobber
+
+  # Runs after the release so the extension's Install CLI button never points at a missing release.
+  extension:
+    needs: [plan, release]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-bun
+      - name: Build
+        working-directory: packages/editor-vscode
+        run: bun run build
+      # The version is set in the workspace checkout for this run only; nothing is committed back. vsce's own
+      # version argument runs `npm version`, which cannot read this workspace's `catalog:` dependencies.
+      - name: Publish to the Marketplace
+        working-directory: packages/editor-vscode
+        run: |
+          node -e 'const f="package.json",p=require("./"+f);p.version=process.env.VERSION;require("fs").writeFileSync(f,JSON.stringify(p,null,2)+"\n")'
+          bunx @vscode/vsce@4.1.0 publish --oidc --no-dependencies --allow-missing-repository --skip-license
+        env:
+          VERSION: ${{ needs.plan.outputs.version }}

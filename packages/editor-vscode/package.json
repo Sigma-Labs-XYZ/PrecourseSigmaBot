@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/package.json",
   "name": "sigmabot-editor-context",
-  "displayName": "SigmaBot Editor Context",
+  "displayName": "SigmaBot Coach",
   "description": "Shares the active file, selection and open tabs with the SigmaBot TUI",
   "version": "0.1.0",
   "private": true,

@@ -316,6 +316,10 @@ download_and_install() {
     fi
     mv "$tmp_dir/package/bin/$binary_name" "$INSTALL_DIR/$installed_binary"
     chmod 755 "$INSTALL_DIR/$installed_binary"
+    # The release is cross-compiled on Linux, and Apple Silicon kills a binary without a valid ad-hoc signature.
+    if [ "$os" = "darwin" ]; then
+        codesign --force --sign - "$INSTALL_DIR/$installed_binary"
+    fi
     rm -rf "$tmp_dir"
 }
 

@@ -43,7 +43,7 @@ jobs:
   build:
     needs: plan
     name: build ${{ matrix.target }}
-    runs-on: macos-latest
+    runs-on: ubuntu-24.04
     concurrency:
       group: sigmabot-build-${{ github.ref }}-${{ matrix.target }}
       cancel-in-progress: true
@@ -68,12 +68,14 @@ jobs:
           AUTH0_DOMAIN: ${{ secrets.AUTH0_DOMAIN }}
           AUTH0_CLIENT_ID: ${{ secrets.AUTH0_CLIENT_ID }}
           SIGMABOT_RUBRIC_KEY: ${{ secrets.SIGMABOT_RUBRIC_KEY }}
+      # The Mac binaries are cross-compiled, so they cannot run here; check the embedded version instead.
       - name: Verify version
-        if: matrix.target == 'darwin-arm64'
         run: |
-          actual=$(packages/cli/dist/cli-${{ matrix.target }}/bin/opencode --version)
-          echo "$actual"
-          [[ "$actual" == *"${{ needs.plan.outputs.version }}"* ]]
+          dist=packages/cli/dist/cli-${{ matrix.target }}
+          [ "$(node -p "require('./$dist/package.json').version")" = "$VERSION" ]
+          grep -aqF "$VERSION" "$dist/bin/opencode"
+        env:
+          VERSION: ${{ needs.plan.outputs.version }}
       # install extracts package/bin/opencode from this archive.
       - name: Package
         run: |

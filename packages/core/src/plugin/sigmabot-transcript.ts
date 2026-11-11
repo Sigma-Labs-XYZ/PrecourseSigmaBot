@@ -43,13 +43,12 @@ export function render(messages: readonly SessionMessage.Info[]) {
 }
 
 function entry(message: SessionMessage.Info): string[] {
-  const at = DateTime.formatIso(message.time.created)
-  if (message.type === "user") return [`[${at}] You:\n${message.text}`]
+  if (message.type === "user") return [`You:\n${message.text}`]
   // A synthetic message is a long instruction for the model; its description is the line the trainee saw.
-  if (message.type === "synthetic") return message.description ? [`[${at}] You: ${message.description}`] : []
+  if (message.type === "synthetic") return message.description ? [`You: ${message.description}`] : []
   if (message.type === "shell")
-    return [`[${at}] $ ${message.command}${message.output ? `\n${clip(message.output.output, MAX_TOOL_OUTPUT)}` : ""}`]
-  if (message.type === "compaction") return message.status === "completed" ? [`[${at}] (conversation compacted)`] : []
+    return [`$ ${message.command}${message.output ? `\n${clip(message.output.output, MAX_TOOL_OUTPUT)}` : ""}`]
+  if (message.type === "compaction") return message.status === "completed" ? [`(conversation compacted)`] : []
   if (message.type !== "assistant") return []
   const parts = message.content.flatMap((part) => {
     if (part.type === "text") return part.text.trim() ? [part.text] : []
@@ -69,7 +68,7 @@ function entry(message: SessionMessage.Info): string[] {
           : ""
     return [`[tool ${part.name}] ${input}${output ? `\n${output}` : ""}`]
   })
-  return parts.length === 0 ? [] : [`[${at}] SigmaBot:\n${parts.join("\n")}`]
+  return parts.length === 0 ? [] : [`SigmaBot:\n${parts.join("\n")}`]
 }
 
 function clip(text: string, max: number) {

@@ -105,9 +105,9 @@ describe("SigmaBotTranscript.render", () => {
       ])
       expect(transcript).toBe(
         [
-          "[2026-11-11T09:30:00.000Z] You:\nHow do I undo a commit?",
-          "[2026-11-11T09:30:00.000Z] You: /submit",
-          '[2026-11-11T09:30:00.000Z] SigmaBot:\nUse git revert.\n[tool bash] {"command":"git log"}\nabc123 first',
+          "You:\nHow do I undo a commit?",
+          "You: /submit",
+          'SigmaBot:\nUse git revert.\n[tool bash] {"command":"git log"}\nabc123 first',
         ].join("\n\n"),
       )
     }),
@@ -152,7 +152,7 @@ describe("SigmaBotTranscript.make", () => {
         expect([...fake.rows.keys()].sort()).toEqual(["ses_a", "ses_b"])
         expect(fake.rows.get("ses_a")!.fields).toMatchObject({
           Trainee: ["recTrainee1"],
-          Transcript: "[2026-11-11T09:30:00.000Z] You:\nhello",
+          Transcript: "You:\nhello",
           Status: "Open",
         })
         expect(fake.rows.get("ses_a")!.fields["Last Synced"]).toBeString()

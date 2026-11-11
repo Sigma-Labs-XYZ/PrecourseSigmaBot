@@ -2,7 +2,7 @@
   "$schema": "https://json.schemastore.org/package.json",
   "name": "sigmabot-editor-context",
   "displayName": "SigmaBot Coach",
-  "description": "Shares the active file, selection and open tabs with the SigmaBot TUI",
+  "description": "Sigma Labs' AI tutor, inside VS Code. Learn to code with hints, reviews and setup help, with SigmaBot seeing the file you have open.",
   "version": "0.1.0",
   "private": true,
   "type": "commonjs",
@@ -13,8 +13,31 @@
     "vscode": "^1.90.0"
   },
   "categories": [
+    "Education",
     "Other"
   ],
+  "keywords": [
+    "sigmabot",
+    "sigma labs",
+    "tutor",
+    "coach",
+    "learn to code",
+    "education",
+    "ai"
+  ],
+  "galleryBanner": {
+    "color": "#E4530A",
+    "theme": "dark"
+  },
+  "homepage": "https://github.com/Sigma-Labs-XYZ/PrecourseSigmaBot#readme",
+  "bugs": {
+    "url": "https://github.com/Sigma-Labs-XYZ/PrecourseSigmaBot/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Sigma-Labs-XYZ/PrecourseSigmaBot.git",
+    "directory": "packages/editor-vscode"
+  },
   "activationEvents": [
     "onStartupFinished"
   ],

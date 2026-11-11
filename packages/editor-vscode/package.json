@@ -47,13 +47,22 @@
       {
         "command": "sigmabot.open",
         "title": "SigmaBot: Open",
-        "icon": "$(mortar-board)"
+        "icon": "$(sigmabot-logo)"
       },
       {
         "command": "sigmabot.install",
         "title": "SigmaBot: Install CLI"
       }
     ],
+    "icons": {
+      "sigmabot-logo": {
+        "description": "SigmaBot logo",
+        "default": {
+          "fontPath": "media/sigmabot-icons.woff",
+          "fontCharacter": "\\E001"
+        }
+      }
+    },
     "viewsContainers": {
       "activitybar": [
         {

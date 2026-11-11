@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- New icon, description and Marketplace page.
+- New SigmaBot icon in the status bar, editor title, activity bar and terminal tab, plus a new description and Marketplace page.
 
 ## 0.1.0
 

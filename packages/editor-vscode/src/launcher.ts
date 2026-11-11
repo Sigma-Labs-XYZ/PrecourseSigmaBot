@@ -18,14 +18,14 @@ const WELCOME_COMMANDS = ["sigmabot.install", "sigmabot.open"]
 
 export function registerLauncher(context: ExtensionContext) {
   const item = window.createStatusBarItem(StatusBarAlignment.Left, 0)
-  item.text = "$(mortar-board) SigmaBot"
+  item.text = "$(sigmabot-logo) SigmaBot"
   item.tooltip = "Open SigmaBot"
   item.command = "sigmabot.open"
   item.show()
 
   context.subscriptions.push(
     item,
-    commands.registerCommand("sigmabot.open", open),
+    commands.registerCommand("sigmabot.open", () => open(context)),
     commands.registerCommand("sigmabot.install", install),
     // Welcome views cannot show images, so the sidebar is a script-free webview that may only run the launcher commands.
     window.registerWebviewViewProvider("sigmabot.welcome", {
@@ -110,7 +110,7 @@ function welcomeHtml(webview: Webview, logo: Uri) {
 </html>`
 }
 
-async function open() {
+async function open(context: ExtensionContext) {
   const existing = window.terminals.find((terminal) => terminal.name === TERMINAL_NAME)
   if (existing) return existing.show()
 
@@ -124,6 +124,7 @@ async function open() {
   window
     .createTerminal({
       name: TERMINAL_NAME,
+      iconPath: Uri.joinPath(context.extensionUri, "media", "sigmabot-color.svg"),
       shellPath: binary,
       cwd: workspace.workspaceFolders?.[0]?.uri.fsPath,
       location: { viewColumn: ViewColumn.Beside },

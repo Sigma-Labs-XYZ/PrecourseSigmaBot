@@ -6,11 +6,13 @@ import { HttpClient, HttpClientRequest, HttpClientResponse } from "effect/http"
 import type { AppProcess } from "@opencode/util/process"
 import { gitExecutable } from "../util/git-executable.js"
 import type { SigmaBotProgress } from "./sigmabot-progress.js"
+import type { SigmaBotTranscript } from "./sigmabot-transcript.js"
 
 /** The Sigma Labs base that holds the cohort and trainee tables the dashboard reads. */
 export const BASE = "app3kRCcq4MHcdSty"
 export const SUBMISSIONS = "tblMn7uvZe1P0tZ95"
 export const TRAINEES = "tbl8470yTXwItb189"
+export const TRANSCRIPTS = "tbllEidn62pmCNkV8"
 
 export const ENDPOINT = "https://api.airtable.com"
 const TIMEOUT = Duration.seconds(10)
@@ -38,11 +40,8 @@ const TraineeFields = Schema.Struct({ "GitHub Handle": Schema.optional(Schema.St
 const decodeSubmissions = HttpClientResponse.schemaBodyJson(Page(SubmissionFields))
 const decodeTrainees = HttpClientResponse.schemaBodyJson(Page(TraineeFields))
 
-/**
- * The shared record of attempts in Airtable for one trainee, identified by their GitHub username. The token is
- * built into the client, as the course design intends: trainees need no Airtable access of their own.
- */
-export function remote(
+/** Request plumbing shared by every table: auth, timeout, and finding the trainee's row by GitHub handle. */
+function connect(
   http: HttpClient.HttpClient,
   input: { readonly token: string; readonly handle: string; readonly endpoint?: string },
 ) {
@@ -57,6 +56,38 @@ export function remote(
     )
   // Formula strings only ever hold a validated GitHub handle, so nothing needs escaping.
   const formula = `LOWER({GitHub Handle})="${input.handle.toLowerCase()}"`
+
+  const traineeID = Effect.fn("SigmaBotAirtable.traineeID")(function* () {
+    const page = yield* run(
+      client
+        .execute(
+          authorized(
+            HttpClientRequest.get(`${base}/${TRAINEES}`).pipe(
+              HttpClientRequest.setUrlParams({
+                filterByFormula: formula,
+                maxRecords: "1",
+                "fields[]": "GitHub Handle",
+              }),
+            ),
+          ),
+        )
+        .pipe(Effect.flatMap(decodeTrainees), Effect.scoped),
+    )
+    return page.records[0]?.id
+  })
+
+  return { client, base, authorized, run, formula, traineeID }
+}
+
+/**
+ * The shared record of attempts in Airtable for one trainee, identified by their GitHub username. The token is
+ * built into the client, as the course design intends: trainees need no Airtable access of their own.
+ */
+export function remote(
+  http: HttpClient.HttpClient,
+  input: { readonly token: string; readonly handle: string; readonly endpoint?: string },
+) {
+  const { client, base, authorized, run, formula, traineeID } = connect(http, input)
 
   const list = Effect.fn("SigmaBotAirtable.list")(function* () {
     const all: (SigmaBotProgress.Attempt & { readonly course: string })[] = []
@@ -95,25 +126,6 @@ export function remote(
     return all.filter((attempt) => attempt.challenge !== "")
   })
 
-  const traineeID = Effect.fn("SigmaBotAirtable.traineeID")(function* () {
-    const page = yield* run(
-      client
-        .execute(
-          authorized(
-            HttpClientRequest.get(`${base}/${TRAINEES}`).pipe(
-              HttpClientRequest.setUrlParams({
-                filterByFormula: formula,
-                maxRecords: "1",
-                "fields[]": "GitHub Handle",
-              }),
-            ),
-          ),
-        )
-        .pipe(Effect.flatMap(decodeTrainees), Effect.scoped),
-    )
-    return page.records[0]?.id
-  })
-
   const create = Effect.fn("SigmaBotAirtable.create")(function* (
     submission: SigmaBotProgress.Submission & { readonly at: string },
   ) {
@@ -149,6 +161,51 @@ export function remote(
   })
 
   return { list, create } satisfies SigmaBotProgress.Remote
+}
+
+// Airtable accepts at most ten records per write.
+const BATCH = 10
+
+/**
+ * Backs up chat transcripts to Airtable: one row per chat, found again by its Session ID so every sync updates
+ * the same row instead of adding a new one.
+ */
+export function transcripts(
+  http: HttpClient.HttpClient,
+  input: { readonly token: string; readonly handle: string; readonly endpoint?: string },
+) {
+  const { client, base, authorized, run, traineeID } = connect(http, input)
+
+  const upsert = Effect.fn("SigmaBotAirtable.upsertTranscripts")(function* (rows: readonly SigmaBotTranscript.Row[]) {
+    if (rows.length === 0) return
+    // A handle with no Trainees row still gets its transcripts backed up; a coach can link it later.
+    const trainee = yield* traineeID().pipe(Effect.orElseSucceed(() => undefined))
+    for (let start = 0; start < rows.length; start += BATCH)
+      yield* run(
+        client
+          .execute(
+            authorized(
+              HttpClientRequest.patch(`${base}/${TRANSCRIPTS}`).pipe(
+                HttpClientRequest.bodyJsonUnsafe({
+                  performUpsert: { fieldsToMergeOn: ["Session ID"] },
+                  records: rows.slice(start, start + BATCH).map((row) => ({
+                    fields: {
+                      "Session ID": row.sessionID,
+                      ...(trainee ? { Trainee: [trainee] } : {}),
+                      Transcript: row.transcript,
+                      Status: row.closed ? "Closed" : "Open",
+                      "Last Synced": row.syncedAt,
+                    },
+                  })),
+                }),
+              ),
+            ),
+          )
+          .pipe(Effect.scoped),
+      )
+  })
+
+  return { upsert } satisfies SigmaBotTranscript.Remote
 }
 
 /**

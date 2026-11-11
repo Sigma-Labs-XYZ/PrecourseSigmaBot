@@ -90,6 +90,7 @@ import { WriteTool } from "../tool/plugin/write.js"
 import { AgentPlugin } from "./agent.js"
 import BrowserPlugin from "@opencode/plugin-browser"
 import { CommandPlugin } from "./command.js"
+import { SigmaBotBackupPlugin } from "./sigmabot-backup.js"
 import { SigmaBotCommandPlugin } from "./sigmabot-commands.js"
 import { SigmaBotMemoryPlugin } from "./sigmabot-memory.js"
 import { IdentityPlugin } from "./identity.js"
@@ -227,6 +228,7 @@ const pre = [
   CommandPlugin.Plugin,
   SigmaBotCommandPlugin.Plugin,
   SigmaBotMemoryPlugin.Plugin,
+  SigmaBotBackupPlugin.Plugin,
   SkillPlugin.Plugin,
   VcsHgPlugin.Plugin,
   ModelsDevPlugin,

@@ -8,7 +8,7 @@ import { Provider } from "../../provider.js"
 declare const SIGMABOT_OPENROUTER_KEY: string | undefined
 
 const providerID = Provider.ID.make("openrouter")
-const modelID = Model.ID.make("anthropic/claude-sonnet-5.5")
+const modelID = Model.ID.make("anthropic/claude-haiku-5.5")
 
 export const SigmaBotPlugin = define({
   id: "sigmabot.openrouter",
@@ -18,7 +18,8 @@ export const SigmaBotPlugin = define({
         ? SIGMABOT_OPENROUTER_KEY
         : (process.env.SIGMABOT_OPENROUTER_KEY || process.env.OPENROUTER_KEY || (yield* Effect.promise(repoEnvKey)))
     // SigmaBot only ever talks to OpenRouter with the bundled key: every other provider, including the
-    // free OpenCode tier, is disabled, and so are OpenRouter's own free models.
+    // free OpenCode tier, is disabled. Only Haiku 5.5 stays enabled on OpenRouter because the account's
+    // guardrails block every other model.
     yield* ctx.provider.transform((providers) => {
       providers
         .list()
@@ -33,8 +34,9 @@ export const SigmaBotPlugin = define({
     yield* ctx.model.transform((models) => {
       models
         .list(providerID)
-        .filter((model) => model.id.endsWith(":free"))
+        .filter((model) => model.id !== modelID)
         .forEach((model) => models.update(providerID, model.id, (draft) => void (draft.enabled = false)))
+      models.update(providerID, modelID, (draft) => void (draft.enabled = true))
       models.default.set(providerID, modelID)
     })
   }),

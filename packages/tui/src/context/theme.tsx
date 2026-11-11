@@ -1,4 +1,4 @@
-import { CliRenderEvents, SyntaxStyle, type TerminalColors } from "@opentui/core"
+import { SyntaxStyle, type TerminalColors } from "@opentui/core"
 import { useRenderer } from "@opentui/solid"
 import {
   generateSyntax,
@@ -132,10 +132,8 @@ const themeContext = createSimpleContext({
 
     setStore(
       produce((draft) => {
-        const lock = config.theme?.mode === "dark" || config.theme?.mode === "light" ? config.theme.mode : undefined
-        const mode = lock ?? renderer.themeMode ?? props.mode
-        draft.mode = mode
-        draft.lock = lock
+        draft.mode = "dark"
+        draft.lock = "dark"
         draft.active = config.theme?.name ?? "opencode"
         draft.ready = false
       }),
@@ -146,15 +144,6 @@ const themeContext = createSimpleContext({
       if (!theme) return
       setStore("active", theme)
       if (theme === "system") refreshPalette()
-    })
-
-    createEffect(() => {
-      const mode = config.theme?.mode
-      if (mode === "dark" || mode === "light") {
-        pin(mode, false)
-        return
-      }
-      if (mode === "system" && store.lock !== undefined) free(false)
     })
 
     function syncCustomThemes() {
@@ -224,42 +213,6 @@ const themeContext = createSimpleContext({
       refreshPalette()
     }
 
-    function apply(mode: "dark" | "light") {
-      if (store.mode !== mode) {
-        setStore("mode", mode)
-        applyPalette()
-      }
-      refreshPalette()
-    }
-
-    function pin(mode: "dark" | "light" = store.mode, persist = true) {
-      setStore("lock", mode)
-      apply(mode)
-      if (!persist) return
-      void configState
-        .update((draft) => {
-          draft.theme = { ...draft.theme, mode }
-        })
-        .catch(() => {})
-    }
-
-    function free(persist = true) {
-      setStore("lock", undefined)
-      apply(renderer.themeMode ?? store.mode)
-      if (!persist) return
-      void configState
-        .update((draft) => {
-          draft.theme = { ...draft.theme, mode: "system" }
-        })
-        .catch(() => {})
-    }
-
-    const handleMode = (mode: "dark" | "light") => {
-      if (store.lock) return
-      apply(mode)
-    }
-    renderer.on(CliRenderEvents.THEME_MODE, handleMode)
-
     const handleThemeNotification = (sequence: string) => {
       if (sequence !== "\x1b[?997;1n" && sequence !== "\x1b[?997;2n") return false
       queueMicrotask(refreshPalette)
@@ -281,7 +234,6 @@ const themeContext = createSimpleContext({
 
     onCleanup(() => {
       disposed = true
-      renderer.off(CliRenderEvents.THEME_MODE, handleMode)
       renderer.removeInputHandler(handleThemeNotification)
       unsubscribeRefresh?.()
       for (const timeout of themeRefreshTimeouts) clearTimeout(timeout)
@@ -329,14 +281,10 @@ const themeContext = createSimpleContext({
       mode,
       modes,
       supports: (requested) => modes().includes(requested),
-      locked: () => store.lock !== undefined,
-      lock: () => pin(mode()),
-      unlock: free,
-      setMode(requested = mode(), persist = true) {
-        if (!modes().includes(requested)) return false
-        pin(requested, persist)
-        return true
-      },
+      locked: () => true,
+      lock: () => {},
+      unlock: () => {},
+      setMode: (requested = "dark") => requested === "dark" && modes().includes("dark"),
       set(theme: string) {
         if (!has(theme)) return false
         setStore("active", theme)

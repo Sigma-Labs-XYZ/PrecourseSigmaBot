@@ -1,0 +1,111 @@
+name: sigmabot-release
+
+# Builds the SigmaBot CLI and publishes it as a GitHub release. Every run publishes a new version,
+# <major>.<minor>.<run number>, where major.minor comes from packages/cli/package.json, so the build number
+# increments on every release. The CLI's update check and the `install` script read the latest release.
+# Repository secrets mirror the names in .env (load them with `gh secret set -f .env`): OPENROUTER_KEY, AIRTABLE_KEY,
+# AUTH0_DOMAIN, AUTH0_CLIENT_ID. Optional: SIGMABOT_RUBRIC_KEY.
+
+on:
+  push:
+    branches: [dev]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  plan:
+    if: github.repository == 'Sigma-Labs-XYZ/PrecourseSigmaBot'
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          sparse-checkout: packages/cli/package.json
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+      - id: version
+        run: |
+          base=$(node -p "require('./packages/cli/package.json').version.split('.').slice(0, 2).join('.')")
+          echo "version=$base.$GITHUB_RUN_NUMBER" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: plan
+    name: build ${{ matrix.target }}
+    runs-on: macos-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        target: [darwin-arm64, darwin-x64]
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-bun
+      - name: Build
+        working-directory: packages/cli
+        run: bun run build
+        env:
+          OPENCODE_CHANNEL: latest
+          OPENCODE_VERSION: ${{ needs.plan.outputs.version }}
+          OPENCODE_TARGET: ${{ matrix.target }}
+          SIGMABOT_OPENROUTER_KEY: ${{ secrets.OPENROUTER_KEY }}
+          SIGMABOT_AIRTABLE_KEY: ${{ secrets.AIRTABLE_KEY }}
+          AUTH0_DOMAIN: ${{ secrets.AUTH0_DOMAIN }}
+          AUTH0_CLIENT_ID: ${{ secrets.AUTH0_CLIENT_ID }}
+          SIGMABOT_RUBRIC_KEY: ${{ secrets.SIGMABOT_RUBRIC_KEY }}
+      - name: Verify version
+        if: matrix.target == 'darwin-arm64'
+        run: |
+          actual=$(packages/cli/dist/cli-${{ matrix.target }}/bin/opencode --version)
+          echo "$actual"
+          [[ "$actual" == *"${{ needs.plan.outputs.version }}"* ]]
+      # install extracts package/bin/opencode from this archive.
+      - name: Package
+        run: |
+          mkdir -p stage out
+          cp -R packages/cli/dist/cli-${{ matrix.target }} stage/package
+          tar -czf out/sigmabot-${{ matrix.target }}.tar.gz -C stage package
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: sigmabot-${{ matrix.target }}
+          path: out/sigmabot-${{ matrix.target }}.tar.gz
+          if-no-files-found: error
+
+  release:
+    needs: [plan, build]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      VERSION: ${{ needs.plan.outputs.version }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          sparse-checkout: install
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          path: assets
+          pattern: sigmabot-*
+          merge-multiple: true
+      - name: Publish release
+        run: |
+          cp install assets/install
+          (cd assets && shasum -a 256 install sigmabot-*.tar.gz > checksums.txt)
+          gh release view "v$VERSION" >/dev/null 2>&1 ||
+            gh release create "v$VERSION" --title "v$VERSION" --target "$GITHUB_SHA" --latest \
+              --notes "SigmaBot $VERSION (build $GITHUB_RUN_NUMBER)"
+          gh release upload "v$VERSION" assets/* --clobber

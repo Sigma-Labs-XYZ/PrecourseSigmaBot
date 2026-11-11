@@ -21,9 +21,11 @@ function fixture(
   } = () => ({}),
   name = "@opencode/cli",
   failCleanup = false,
-  releasePackage = name,
   formula?: string,
-  executableOverride?: (root: string, home: string) => Effect.Effect<string, PlatformError.PlatformError, FileSystem.FileSystem>,
+  executableOverride?: (
+    root: string,
+    home: string,
+  ) => Effect.Effect<string, PlatformError.PlatformError, FileSystem.FileSystem>,
 ) {
   return Effect.gen(function* () {
     const fs = yield* FileSystem.FileSystem
@@ -53,7 +55,10 @@ function fixture(
               const url = input instanceof Request ? input.url : input.toString()
               requests.push(url)
               if (new URL(url).hostname === "formulae.brew.sh") return Response.json({ versions: { stable: "2.0.21" } })
-              return Response.json({ version: "2.3.4", metadata: { package: releasePackage } })
+              // GitHub redirects /releases/latest to the tag page; fetch exposes the final URL.
+              return Object.defineProperty(new Response(null), "url", {
+                value: "https://github.com/Sigma-Labs-XYZ/PrecourseSigmaBot/releases/tag/v2.3.4",
+              })
             },
             { preconnect: fetch.preconnect },
           ),
@@ -157,14 +162,6 @@ installs.forEach(({ method, command }) => {
   )
 })
 
-it.live("vp force-installs a renamed V2 package that replaces the existing binary owner", () =>
-  Effect.gen(function* () {
-    const test = yield* fixture(() => ({}), "@opencode/cli", false, "@opencode/cli-node")
-    yield* test.updater.upgrade("vp", "v2.3.4-beta.1")
-    expect(test.commands).toEqual([["vp", "install", "-g", "--force", "@opencode/cli-node@2.3.4-beta.1"]])
-  }),
-)
-
 it.live("vp removes the package from its managed global store", () =>
   Effect.gen(function* () {
     const test = yield* fixture()
@@ -222,7 +219,13 @@ it.live("bun ignores install cache cleanup failures", () =>
       const installer = test.commands[0]?.[3]
       expect(installer).toStartWith(path.join(test.global.cache, "update-"))
       expect(test.commands).toEqual([
-        ["curl", "-fsSL", "-o", installer, "https://updates.sigmabot.example/v2/install"],
+        [
+          "curl",
+          "-fsSL",
+          "-o",
+          installer,
+          "https://github.com/Sigma-Labs-XYZ/PrecourseSigmaBot/releases/latest/download/install",
+        ],
         ...(failure === "download" ? [] : [[test.bash, installer, "--version", "2.3.4-beta.1", "--no-modify-path"]]),
       ])
       expect(yield* test.fs.readDirectory(test.global.cache)).toEqual([])
@@ -311,7 +314,7 @@ it.live("vp detection ignores no-match output that repeats the package name", ()
 
 it.live("Homebrew Core installs check and upgrade the Core formula", () =>
   Effect.gen(function* () {
-    const test = yield* fixture(() => ({}), "@opencode/cli", false, "anomalyco/tap/opencode-v2", "opencode")
+    const test = yield* fixture(() => ({}), "@opencode/cli", false, "opencode")
     expect(yield* test.updater.method()).toBe("brew")
     expect(yield* test.updater.latest()).toBe("2.0.21")
     yield* test.updater.upgrade("brew", "2.0.21")
@@ -320,32 +323,24 @@ it.live("Homebrew Core installs check and upgrade the Core formula", () =>
     expect(yield* test.updater.latest("npm")).toBe("2.3.4")
     expect(test.requests).toEqual([
       "https://formulae.brew.sh/api/formula/opencode.json",
-      "https://updates.sigmabot.example/update/api/local/cli/npm?current=local",
+      "https://github.com/Sigma-Labs-XYZ/PrecourseSigmaBot/releases/latest",
     ])
   }),
 )
-;["opencode-v2", "opencode-beta"].forEach((formula) => {
-  it.live(`Homebrew tap installs of ${formula} use the published tap formula`, () =>
-    Effect.gen(function* () {
-      const test = yield* fixture(() => ({}), "@opencode/cli", false, `anomalyco/tap/${formula}`, formula)
-      expect(yield* test.updater.method()).toBe("brew")
-      expect(yield* test.updater.latest()).toBe("2.3.4")
-      yield* test.updater.upgrade("brew", "2.3.4")
-      expect(test.commands).toEqual([["brew", "upgrade", `anomalyco/tap/${formula}`]])
-      expect(test.requests).toEqual([
-        "https://updates.sigmabot.example/update/api/local/cli/homebrew?current=local",
-        "https://updates.sigmabot.example/update/api/local/cli/homebrew?current=local",
-      ])
-    }),
-  )
-})
+it.live("Homebrew tap installs check the GitHub release", () =>
+  Effect.gen(function* () {
+    const test = yield* fixture(() => ({}), "@opencode/cli", false, "opencode-v2")
+    expect(yield* test.updater.method()).toBe("brew")
+    expect(yield* test.updater.latest()).toBe("2.3.4")
+    expect(test.requests).toEqual(["https://github.com/Sigma-Labs-XYZ/PrecourseSigmaBot/releases/latest"])
+  }),
+)
 
 const winget = (search: Partial<AppProcess.RunResult>) =>
   fixture(
     (command) => (command.args[0] === "search" ? search : {}),
     "@opencode/cli",
     false,
-    "@opencode/cli",
     undefined,
     (root) =>
       Effect.succeed(
@@ -481,9 +476,8 @@ windows("windows links the curl binary before the installer replaces it", () =>
       },
       "@opencode/cli",
       false,
-      "@opencode/cli",
       undefined,
-      (_root, home) => Effect.succeed(path.join(home, ".opencode", "bin", "opencode.exe")),
+      (_root, home) => Effect.succeed(path.join(home, ".opencode", "bin", "sigmabot.exe")),
     )
     layout.executable = test.executable
     layout.cache = test.global.cache
@@ -504,13 +498,12 @@ unix("curl method detection resolves symlinked home directories", () =>
       () => ({}),
       "@opencode/cli",
       false,
-      "@opencode/cli",
       undefined,
       (root, home) =>
         Effect.gen(function* () {
           const fs = yield* FileSystem.FileSystem
           const realHome = path.join(root, "real-home")
-          const bin = path.join(realHome, ".opencode", "bin", "opencode")
+          const bin = path.join(realHome, ".opencode", "bin", "sigmabot")
           yield* fs.makeDirectory(path.dirname(bin), { recursive: true })
           yield* fs.symlink(realHome, home)
           return bin

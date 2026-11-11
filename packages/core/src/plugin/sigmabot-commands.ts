@@ -5,11 +5,13 @@ import type { CommandInvocation } from "@opencode/plugin/effect/command"
 import { define } from "@opencode/plugin/effect/plugin"
 import { AppProcess } from "@opencode/util/process"
 import { Effect, Schema } from "effect"
+import { HttpClient } from "effect/http"
 import fs from "fs/promises"
 import { Location } from "../location.js"
 import { ShellSelect } from "../shell/select.js"
 import SUBMIT from "./command/sigmabot/submit.txt"
 import UPDATE from "./command/sigmabot/update.txt"
+import { SigmaBotAirtable } from "./sigmabot-airtable.js"
 import { SigmaBotCourse } from "./sigmabot-course.js"
 import { SigmaBotProgress } from "./sigmabot-progress.js"
 import { SigmaBotSubmit } from "./sigmabot-submit.js"
@@ -18,6 +20,9 @@ import { SigmaBotUpdate } from "./sigmabot-update.js"
 // Injected by the CLI build from SIGMABOT_RUBRIC_KEY; undefined when running from source, where the
 // environment supplies it. Only needed once the course ships encrypted rubrics.
 declare const SIGMABOT_RUBRIC_KEY: string | undefined
+// Injected the same way from SIGMABOT_AIRTABLE_KEY. Without it, or without a GitHub fork to name the trainee,
+// attempts are only kept on this laptop.
+declare const SIGMABOT_AIRTABLE_KEY: string | undefined
 
 /** The only agent allowed to read a rubric, so its plain text stays out of the trainee's conversation. */
 const GRADER = "grader"
@@ -46,7 +51,14 @@ export const Plugin = define({
     const location = yield* Location.Service
     const processes = yield* AppProcess.Service
     const shells = yield* ShellSelect.Service
-    const progress = SigmaBotProgress.local(ctx.storage)
+    const http = yield* HttpClient.HttpClient
+    const airtableKey =
+      typeof SIGMABOT_AIRTABLE_KEY === "string" ? SIGMABOT_AIRTABLE_KEY : process.env.SIGMABOT_AIRTABLE_KEY
+    const handle = airtableKey ? yield* SigmaBotAirtable.handle(processes, location.directory) : undefined
+    const progress = SigmaBotProgress.make(
+      ctx.storage,
+      airtableKey && handle ? SigmaBotAirtable.remote(http, { token: airtableKey, handle }) : undefined,
+    )
     const rubricKey = typeof SIGMABOT_RUBRIC_KEY === "string" ? SIGMABOT_RUBRIC_KEY : process.env.SIGMABOT_RUBRIC_KEY
     // The template is long instructions for the model, so it goes in as a synthetic message that the UI shows
     // as one short line instead of filling the chat.
@@ -218,8 +230,13 @@ export const Plugin = define({
               input.functional >= gates.functional &&
               input.nonFunctional >= gates.nonFunctional &&
               input.quiz >= quizGate
-            const attempt = yield* progress.record(found.course.id, {
-              challenge: found.challenge.key,
+            const recorded = yield* progress.record({
+              course: { id: found.course.id, version: found.course.version },
+              challenge: {
+                key: found.challenge.key,
+                title: found.challenge.title,
+                module: found.challenge.module.id,
+              },
               functional: input.functional,
               nonFunctional: input.nonFunctional,
               quiz: input.quiz,
@@ -228,13 +245,13 @@ export const Plugin = define({
             })
             return {
               content: [
-                `Attempt ${attempt} at ${found.challenge.key} recorded.`,
+                `Attempt ${recorded.attempt} at ${found.challenge.key} recorded${recorded.synced ? "" : " on this laptop only (Airtable could not be reached, so coaches cannot see it yet)"}.`,
                 `Verdict: ${passed ? "passed" : "not passed yet"}`,
                 `Functional: ${percent(input.functional)} (needs ${percent(gates.functional)})`,
                 `Non-functional: ${percent(input.nonFunctional)} (needs ${percent(gates.nonFunctional)})`,
                 `Quiz: ${percent(input.quiz)} (needs ${percent(quizGate)})`,
               ].join("\n"),
-              metadata: { challenge: found.challenge.key, attempt, passed },
+              metadata: { challenge: found.challenge.key, attempt: recorded.attempt, synced: recorded.synced, passed },
             }
           }),
       })

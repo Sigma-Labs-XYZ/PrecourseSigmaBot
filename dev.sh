@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Runs SigmaBot from source with the OpenRouter key from .env (OPENROUTER_KEY=...).
-# Uses a private --standalone server so the key reaches it, instead of the shared background service.
+# Runs SigmaBot from source with the OpenRouter and Airtable keys from .env (OPENROUTER_KEY=..., AIRTABLE_KEY=...).
+# Uses a private --standalone server so the keys reach it, instead of the shared background service.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
@@ -13,6 +13,16 @@ if [[ -z "${SIGMABOT_OPENROUTER_KEY:-}" ]]; then
     exit 1
 fi
 export SIGMABOT_OPENROUTER_KEY
+
+# Airtable token that /submit uses to record attempts, from AIRTABLE_KEY in .env.
+if [[ -z "${SIGMABOT_AIRTABLE_KEY:-}" && -f "$ROOT/.env" ]]; then
+    SIGMABOT_AIRTABLE_KEY="$(sed -n -E 's/^[[:space:]]*(export[[:space:]]+)?AIRTABLE_KEY[[:space:]]*=[[:space:]]*["'\'']?([^"'\''[:space:]]*).*$/\2/p' "$ROOT/.env" | tail -n 1)"
+fi
+if [[ -z "${SIGMABOT_AIRTABLE_KEY:-}" ]]; then
+    echo "Error: set AIRTABLE_KEY in $ROOT/.env (or export SIGMABOT_AIRTABLE_KEY)" >&2
+    exit 1
+fi
+export SIGMABOT_AIRTABLE_KEY
 
 # Auth0 settings from .env (AUTH0_DOMAIN, AUTH0_CLIENT_ID); empty falls back to built-in defaults.
 if [[ -f "$ROOT/.env" ]]; then

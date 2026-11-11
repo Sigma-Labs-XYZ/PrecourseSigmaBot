@@ -31,6 +31,14 @@ const openRouterKey = process.env.SIGMABOT_OPENROUTER_KEY
 if (!openRouterKey) throw new Error("SIGMABOT_OPENROUTER_KEY must be set to embed the OpenRouter key")
 // Optional until the course ships encrypted rubrics.
 const rubricKey = process.env.SIGMABOT_RUBRIC_KEY
+const airtableKey = process.env.SIGMABOT_AIRTABLE_KEY
+if (!airtableKey) throw new Error("SIGMABOT_AIRTABLE_KEY must be set to embed the Airtable key")
+// Compiled binaries do not read the build environment at runtime, so embed the Auth0 settings; empty values keep the built-in defaults.
+const auth0Define = Object.fromEntries(
+  (["AUTH0_DOMAIN", "AUTH0_CLIENT_ID"] as const).flatMap((name) =>
+    process.env[name] ? [[`process.env.${name}`, JSON.stringify(process.env[name])]] : [],
+  ),
+)
 const singleFlag = process.argv.includes("--single")
 const baselineFlag = process.argv.includes("--baseline")
 const requestedTarget = process.env.OPENCODE_TARGET
@@ -201,6 +209,8 @@ export default { path: file, version: ${JSON.stringify(opencodePty.version)}, sh
       OPENCODE_CLI_NAME: "'sigmabot'",
       SIGMABOT_OPENROUTER_KEY: JSON.stringify(openRouterKey),
       SIGMABOT_RUBRIC_KEY: rubricKey ? JSON.stringify(rubricKey) : "undefined",
+      SIGMABOT_AIRTABLE_KEY: JSON.stringify(airtableKey),
+      ...auth0Define,
       OPENCODE_CHANNEL: `'${Script.channel}'`,
       OPENCODE_ARTIFACT: `'cli'`,
       ...(highlights ? { OPENCODE_RELEASE_HIGHLIGHTS: JSON.stringify(highlights) } : {}),

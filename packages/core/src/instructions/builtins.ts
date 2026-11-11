@@ -2,9 +2,11 @@ export * as InstructionBuiltIns from "./builtins.js"
 
 import { makeLocationNode } from "@opencode/util/effect/app-node"
 import { Context, DateTime, Effect, Layer, Schema } from "effect"
+import { FSUtil } from "@opencode/util/fs-util"
 import { Global } from "@opencode/util/global"
 import { Location } from "../location.js"
 import { Instructions } from "./index.js"
+import { InstructionMemories } from "./memories.js"
 
 export interface Interface {
   readonly load: () => Effect.Effect<Instructions.List>
@@ -15,6 +17,7 @@ export class Service extends Context.Service<Service, Interface>()("@opencode/In
 const layer = Layer.effect(
   Service,
   Effect.gen(function* () {
+    const fs = yield* FSUtil.Service
     const global = yield* Global.Service
     const location = yield* Location.Service
     return Service.of({
@@ -51,10 +54,11 @@ const layer = Layer.effect(
                   ["The environment you are running in is now:", environment].join("\n"),
               },
             }),
+            InstructionMemories.source(fs, location.project.directory),
           ]),
         ),
     })
   }),
 )
 
-export const node = makeLocationNode({ service: Service, layer, deps: [Global.node, Location.node] })
+export const node = makeLocationNode({ service: Service, layer, deps: [FSUtil.node, Global.node, Location.node] })

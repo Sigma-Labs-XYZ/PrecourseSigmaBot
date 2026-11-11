@@ -56,8 +56,7 @@ const installNames: Record<Method, string> = {
   winget: "WinGet",
 }
 
-// TODO: replace with the real update host; the reserved .example TLD never resolves, so update checks fail with an error.
-const updateOrigin = "https://updates.sigmabot.example"
+const releasesOrigin = "https://github.com/Sigma-Labs-XYZ/PrecourseSigmaBot/releases"
 
 const wingetPackage = "Anomaly.OpenCode"
 const wingetArgs = [
@@ -145,7 +144,6 @@ const make = Effect.gen(function* () {
   const appProcess = yield* AppProcess.Service
   const flock = yield* EffectFlock.Service
   const installedVersion = yield* Ref.make(OPENCODE_VERSION)
-  const channel = OPENCODE_CHANNEL.replace(/[^a-zA-Z0-9._-]/g, "-")
   const executable = yield* fs.realPath(process.execPath).pipe(Effect.orElseSucceed(() => process.execPath))
   const installedPackage = yield* Effect.gen(function* () {
     const directory = path.dirname(path.dirname(executable))
@@ -194,7 +192,7 @@ const make = Effect.gen(function* () {
     global.home,
     ".opencode",
     "bin",
-    process.platform === "win32" ? "opencode.exe" : "opencode",
+    process.platform === "win32" ? "sigmabot.exe" : "sigmabot",
   )
   const curlBinary = yield* fs.realPath(curlPath).pipe(Effect.orElseSucceed(() => curlPath))
 
@@ -220,7 +218,10 @@ const make = Effect.gen(function* () {
     if (installedWinget) return "winget"
     if (!installedPackage) return
 
-    const parts = executable.toLowerCase().split(path.sep).map((part) => part.replace(/^\./, ""))
+    const parts = executable
+      .toLowerCase()
+      .split(path.sep)
+      .map((part) => part.replace(/^\./, ""))
     const checks: Array<{ method: Method; command: string[] }> = [
       { method: "npm", command: ["npm", "list", "-g", "--depth=0", installedPackage] },
       { method: "pnpm", command: ["pnpm", "list", "-g", "--depth=0", installedPackage] },
@@ -276,19 +277,15 @@ const make = Effect.gen(function* () {
   }
 
   const release = Effect.fnUntraced(function* (method?: Method) {
-    const distribution = method === "brew" ? "homebrew" : "npm"
     // Homebrew Core builds its formula on its own schedule, so the tap release does not describe it.
     const core = method === "brew" && installedFormula === "opencode"
     const response = yield* Effect.tryPromise({
       try: (signal) =>
-        fetch(
-          core
-            ? "https://formulae.brew.sh/api/formula/opencode.json"
-            : `${updateOrigin}/update/api/${encodeURIComponent(channel)}/${encodeURIComponent(OPENCODE_ARTIFACT)}/${distribution}?current=${encodeURIComponent(OPENCODE_VERSION)}`,
-          {
-            signal: AbortSignal.any([signal, AbortSignal.timeout(10_000)]),
-          },
-        ),
+        // GitHub redirects /releases/latest to /releases/tag/<tag>, which avoids the API's unauthenticated rate limit.
+        fetch(core ? "https://formulae.brew.sh/api/formula/opencode.json" : `${releasesOrigin}/latest`, {
+          method: core ? "GET" : "HEAD",
+          signal: AbortSignal.any([signal, AbortSignal.timeout(10_000)]),
+        }),
       catch: (cause) =>
         new UpgradeError(
           {
@@ -307,22 +304,32 @@ const make = Effect.gen(function* () {
           retry: "Try again in a few minutes.",
         }),
       )
-    const data: { version?: string; metadata?: { package?: string }; versions?: { stable?: string } } =
-      yield* Effect.tryPromise({
-        try: () => response.json(),
-        catch: (cause) =>
-          new UpgradeError(
-            {
-              title: "Could not read the SigmaBot update information",
-              detail: errorDetail(cause),
-              retry: "Try again in a few minutes.",
-            },
-            { cause },
-          ),
-      })
-    const version = core ? data.versions?.stable : data.version
-    const packageName = core ? "opencode" : data.metadata?.package
-    if (!version || !packageName)
+    if (!core) {
+      const tag = new URL(response.url).pathname.match(/\/releases\/tag\/(.+)$/)?.[1]
+      const version = tag && decodeURIComponent(tag).replace(/^v/, "")
+      if (!version || !parseReleaseVersion(version))
+        return yield* Effect.fail(
+          new UpgradeError({
+            title: "Could not read the SigmaBot update information",
+            detail: "The latest GitHub release has no version tag.",
+            retry: "Try again in a few minutes.",
+          }),
+        )
+      return { package: installedPackage ?? "@opencode/cli", version }
+    }
+    const data: { versions?: { stable?: string } } = yield* Effect.tryPromise({
+      try: () => response.json(),
+      catch: (cause) =>
+        new UpgradeError(
+          {
+            title: "Could not read the SigmaBot update information",
+            detail: errorDetail(cause),
+            retry: "Try again in a few minutes.",
+          },
+          { cause },
+        ),
+    })
+    if (!data.versions?.stable)
       return yield* Effect.fail(
         new UpgradeError({
           title: "Could not read the SigmaBot update information",
@@ -330,7 +337,7 @@ const make = Effect.gen(function* () {
           retry: "Try again in a few minutes.",
         }),
       )
-    return { package: packageName, version }
+    return { package: "opencode", version: data.versions.stable }
   })
 
   // WinGet moderates every submission, so only its own index knows which release it can install.
@@ -482,8 +489,8 @@ const make = Effect.gen(function* () {
           const installer = path.join(directory, "install")
           yield* runUpgrade({
             method,
-            command: ["curl", "-fsSL", "-o", installer, `${updateOrigin}/v2/install`],
-            displayCommand: ["curl", "-fsSL", `${updateOrigin}/v2/install`],
+            command: ["curl", "-fsSL", "-o", installer, `${releasesOrigin}/latest/download/install`],
+            displayCommand: ["curl", "-fsSL", `${releasesOrigin}/latest/download/install`],
             title: "Could not download the SigmaBot installer",
             retry: "Check your network, then run sigmabot upgrade again.",
           })

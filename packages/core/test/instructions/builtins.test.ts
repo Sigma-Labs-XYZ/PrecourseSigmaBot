@@ -40,20 +40,22 @@ describe("InstructionBuiltIns", () => {
       const context = yield* InstructionBuiltIns.Service
       const initialized = yield* readInitial(yield* context.load())
 
-      expect(initialized.text).toBe(
-        [
-          `Today's date: ${localDate(timestamp)}`,
-          "",
-          "Here is some useful information about the environment you are running in:",
-          "<env>",
-          `  Working directory: ${directory}`,
-          `  Workspace root folder: ${projectDirectory}`,
-          "  Is directory a git repo: yes",
-          `  Platform: ${process.platform}`,
-          `  Prefer ${temporary} over generic system temporary directories such as /tmp; it is pre-created and approved for external access.`,
-          "</env>",
-        ].join("\n"),
-      )
+      const expected = [
+        `Today's date: ${localDate(timestamp)}`,
+        "",
+        "Here is some useful information about the environment you are running in:",
+        "<env>",
+        `  Working directory: ${directory}`,
+        `  Workspace root folder: ${projectDirectory}`,
+        "  Is directory a git repo: yes",
+        `  Platform: ${process.platform}`,
+        `  Prefer ${temporary} over generic system temporary directories such as /tmp; it is pre-created and approved for external access.`,
+        "</env>",
+      ].join("\n")
+
+      expect(initialized.text.startsWith(expected)).toBe(true)
+      expect(initialized.text.slice(expected.length)).toContain("memory_save")
+      expect(initialized.text).toEndWith("No memories saved yet.")
     }),
   )
 

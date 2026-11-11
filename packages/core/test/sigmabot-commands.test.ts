@@ -2,6 +2,7 @@ import { describe, expect } from "bun:test"
 import fs from "fs/promises"
 import path from "path"
 import { DateTime, Effect, Layer, Schema } from "effect"
+import { FetchHttpClient } from "effect/http"
 import type { CommandDefinition } from "@opencode/plugin/effect/command"
 import type { StorageDomain } from "@opencode/plugin/effect/storage"
 import { Location } from "@opencode/core/location"
@@ -22,11 +23,15 @@ import { withTempDir } from "./fixture/tmpdir"
 import { testEffect } from "./lib/effect"
 import { host } from "./plugin/host"
 
+// These tests exercise the local store only; the Airtable client has its own tests.
+delete process.env.SIGMABOT_AIRTABLE_KEY
+
 const shell = process.platform === "win32" ? "cmd.exe" : "/bin/sh"
 
 // The command and tools spawn git and the test command, so the live clock is used throughout.
 const it = testEffect(
   Layer.mergeAll(
+    FetchHttpClient.layer,
     LayerNode.compile(AppProcess.node),
     Layer.succeed(
       ShellSelect.Service,
@@ -254,7 +259,9 @@ describe("SigmaBotCommandPlugin /submit", () => {
           quiz: 1,
           summary: "Hard-coded a path.",
         })
-        expect(failed).toContain("Attempt 1 at 01-shell/01-where-am-i recorded.\nVerdict: not passed yet")
+        expect(failed).toContain(
+          "Attempt 1 at 01-shell/01-where-am-i recorded on this laptop only (Airtable could not be reached, so coaches cannot see it yet).\nVerdict: not passed yet",
+        )
         expect(failed).toContain("Non-functional: 85% (needs 90%)")
         expect(failed).toContain("Quiz: 100% (needs 80%)")
         expect(yield* plugin.call("submission_prepare", { challenge: KEYS[0] })).toContain("Attempt: 2 (previous: 20")
@@ -266,7 +273,8 @@ describe("SigmaBotCommandPlugin /submit", () => {
           quiz: 0.8,
           summary: "Clean scripts.",
         })
-        expect(passed).toContain("Attempt 2 at 01-shell/01-where-am-i recorded.\nVerdict: passed")
+        expect(passed).toContain("Attempt 2 at 01-shell/01-where-am-i recorded on this laptop only")
+        expect(passed).toContain("Verdict: passed")
         expect(
           yield* plugin.call("submission_record", {
             challenge: KEYS[1],

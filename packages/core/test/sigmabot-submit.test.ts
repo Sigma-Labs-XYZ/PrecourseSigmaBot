@@ -120,24 +120,26 @@ function memoryStorage(): StorageDomain {
   }
 }
 
-describe("SigmaBotProgress.local", () => {
+describe("SigmaBotProgress.make", () => {
+  const submission = (challenge: string, passed: boolean): SigmaBotProgress.Submission => ({
+    course: { id: "course" },
+    challenge: { key: challenge, title: challenge, module: "shell" },
+    functional: passed ? 1 : 0.5,
+    nonFunctional: 0.95,
+    quiz: 0.8,
+    passed,
+    summary: passed ? "all good" : "half the tests fail",
+  })
+
   it.effect("numbers attempts per challenge and reports passed challenges across pages", () =>
     Effect.gen(function* () {
-      const progress = SigmaBotProgress.local(memoryStorage())
-      const attempt = (challenge: string, passed: boolean) => ({
-        challenge,
-        functional: passed ? 1 : 0.5,
-        nonFunctional: 0.95,
-        quiz: 0.8,
-        passed,
-        summary: passed ? "all good" : "half the tests fail",
-      })
-      expect(yield* progress.record("course", attempt("a", false))).toBe(1)
-      expect(yield* progress.record("course", attempt("a", true))).toBe(2)
-      expect(yield* progress.record("course", attempt("b", false))).toBe(1)
-      expect(yield* progress.record("course", attempt("c", true))).toBe(1)
-      expect(yield* progress.record("course", attempt("d", true))).toBe(1)
-      expect(yield* progress.record("other", attempt("e", true))).toBe(1)
+      const progress = SigmaBotProgress.make(memoryStorage())
+      expect(yield* progress.record(submission("a", false))).toEqual({ attempt: 1, synced: false })
+      expect(yield* progress.record(submission("a", true))).toEqual({ attempt: 2, synced: false })
+      expect((yield* progress.record(submission("b", false))).attempt).toBe(1)
+      expect((yield* progress.record(submission("c", true))).attempt).toBe(1)
+      expect((yield* progress.record(submission("d", true))).attempt).toBe(1)
+      expect((yield* progress.record({ ...submission("e", true), course: { id: "other" } })).attempt).toBe(1)
 
       const attempts = yield* progress.attempts("course", "a")
       expect(attempts.map((item) => item.passed)).toEqual([false, true])

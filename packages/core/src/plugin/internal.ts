@@ -91,6 +91,7 @@ import { AgentPlugin } from "./agent.js"
 import BrowserPlugin from "@opencode/plugin-browser"
 import { CommandPlugin } from "./command.js"
 import { SigmaBotCommandPlugin } from "./sigmabot-commands.js"
+import { SigmaBotMemoryPlugin } from "./sigmabot-memory.js"
 import { IdentityPlugin } from "./identity.js"
 import { ModelsDevPlugin } from "./models-dev.js"
 import { McpCodeModeDefaultsPlugin } from "./mcp-codemode-defaults.js"
@@ -225,6 +226,7 @@ const pre = [
   AgentPlugin.Plugin,
   CommandPlugin.Plugin,
   SigmaBotCommandPlugin.Plugin,
+  SigmaBotMemoryPlugin.Plugin,
   SkillPlugin.Plugin,
   VcsHgPlugin.Plugin,
   ModelsDevPlugin,

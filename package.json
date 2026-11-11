@@ -2,7 +2,7 @@
   "$schema": "https://json.schemastore.org/package.json",
   "name": "sigmabot",
   "description": "AI-powered education and learning harness",
-  "version": "2.2.0",
+  "version": "0.5.0",
   "private": true,
   "type": "module",
   "packageManager": "bun@1.4.4",

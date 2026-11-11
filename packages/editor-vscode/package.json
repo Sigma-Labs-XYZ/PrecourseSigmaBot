@@ -7,7 +7,7 @@
   "private": true,
   "type": "commonjs",
   "license": "MIT",
-  "publisher": "sigma-labs",
+  "publisher": "SigmaLabsXYZ",
   "engines": {
     "vscode": "^1.90.0"
   },
@@ -61,7 +61,7 @@
       "properties": {
         "sigmabot.installCommand": {
           "type": "string",
-          "default": "curl -fsSL https://opencode.ai/v2/install | bash",
+          "default": "curl -fsSL https://github.com/Sigma-Labs-XYZ/PrecourseSigmaBot/releases/latest/download/install | bash",
           "markdownDescription": "Shell command run in a terminal (after confirmation) to install the SigmaBot CLI."
         }
       }

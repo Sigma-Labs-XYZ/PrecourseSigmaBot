@@ -143,10 +143,32 @@ async function install() {
   )
   if (choice !== "Run") return
 
-  const terminal = window.createTerminal({ name: INSTALL_TERMINAL_NAME })
+  // Passing the command as shell args runs it at startup instead of typing it into a prompt, so it can't
+  // collide with the Python extension's venv activation text. The trailing exec keeps the terminal open.
+  const terminal =
+    process.platform === "win32"
+      ? window.createTerminal({ name: INSTALL_TERMINAL_NAME })
+      : window.createTerminal({
+          name: INSTALL_TERMINAL_NAME,
+          shellPath: "/bin/sh",
+          shellArgs: ["-c", `${command}\nexec "\${SHELL:-/bin/sh}" -l`],
+        })
   terminal.show()
-  terminal.sendText(command)
-  window.showInformationMessage("When the install finishes, run SigmaBot: Open again.")
+  if (process.platform === "win32") terminal.sendText(command)
+  // Modal so the detail text keeps its line breaks; a toast would collapse the numbered list.
+  window.showInformationMessage(
+    "How to run SigmaBot",
+    {
+      modal: true,
+      detail: [
+        "1. Wait for the install to finish in the terminal panel at the bottom of the window. It is done when you see a new prompt line and no more text is scrolling.",
+        "2. In the top menu bar, click Terminal, then New Terminal. A new terminal opens at the bottom.",
+        "3. Click inside the new terminal, type sigmabot and press Enter.",
+        "4. SigmaBot starts in that terminal. If it says the command was not found, close VS Code completely, reopen it and repeat steps 2 and 3.",
+      ].join("\n\n"),
+    },
+    "Got it",
+  )
 }
 
 // A GUI-launched VS Code often lacks the installer's ~/.opencode/bin on PATH, so check it explicitly.

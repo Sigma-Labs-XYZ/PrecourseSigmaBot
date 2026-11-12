@@ -90,6 +90,20 @@ describe("SigmaBotMemoryPlugin", () => {
     ),
   )
 
+  it.live("recreates the file and folder after they are deleted", () =>
+    withTempDir((tmp) =>
+      Effect.gen(function* () {
+        const plugin = yield* boot(tmp.path)
+        yield* plugin.call("memory_save", "Likes Python.")
+        yield* Effect.promise(() => fs.rm(path.join(tmp.path, ".coach"), { recursive: true }))
+        expect(yield* plugin.call("memory_save", "Likes Python.")).toBe("Remembered.")
+        yield* Effect.promise(() => fs.rm(path.join(tmp.path, ".coach", "MEMORIES.md")))
+        expect(yield* plugin.call("memory_save", "Likes shell.")).toBe("Remembered.")
+        expect(yield* Effect.promise(() => memories(tmp.path))).toContain("Likes shell.")
+      }),
+    ),
+  )
+
   it.live("serialises parallel saves so none are lost", () =>
     withTempDir((tmp) =>
       Effect.gen(function* () {
@@ -147,6 +161,11 @@ describe("InstructionMemories.source", () => {
         expect(update.text).toBe("")
         expect((yield* readUpdate(source, update)).changed).toBe(false)
 
+        yield* fsUtil.remove(file)
+        const cleared = yield* readUpdate(source, update)
+        expect(cleared.text).toContain("was deleted or emptied")
+
+        yield* fsUtil.writeWithDirs(file, "# Learner memories\n\n- 2026-11-11: Likes Python.\n")
         const next = yield* readInitial(InstructionMemories.source(fsUtil, tmp.path))
         expect(next.text).toContain("- 2026-11-11: Likes Python.")
       }),

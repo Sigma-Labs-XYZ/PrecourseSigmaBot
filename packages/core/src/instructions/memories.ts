@@ -51,9 +51,10 @@ export function forget(content: string, memory: string) {
 /**
  * The file as an instruction source. Its contents are put in front of the model once, when a session starts.
  * Later changes, such as the model's own saves, update the baseline without adding a message: the tool results
- * already show what was saved, and the next session loads the new contents.
+ * already show what was saved, and the next session loads the new contents. Only the file disappearing is
+ * reported, so the model knows its earlier notes are gone and saves them again.
  */
-export function source(fs: FSUtil.Interface, root: string) {
+export function source(fs: FSUtil.Interface, root: string): Instructions.List {
   const file = filepath(root)
   const [memories] = Instructions.make({
     key: Instructions.Key.make("core/memories"),
@@ -64,12 +65,19 @@ export function source(fs: FSUtil.Interface, root: string) {
     ),
     render: {
       initial: (content) => [guidance, "", render(content)].join("\n"),
-      // Required by `make`, but replaced below so changes never render a message.
+      // Required by `make`, but replaced below so only a cleared file renders a message.
       changed: () => "unused",
     },
   })
-  return [{ ...memories!, changed: () => undefined }]
+  return [
+    {
+      ...memories!,
+      changed: (_previous, current) => (typeof current === "string" && current.trim() === "" ? cleared : undefined),
+    },
+  ]
 }
+
+const cleared = `${FILE} was deleted or emptied, so the earlier notes no longer exist. Treat anything you remembered about the learner as unsaved and call memory_save again when it is still worth keeping.`
 
 const guidance = [
   `You keep long-term notes about the learner in ${FILE}. It lives in the project and is committed with it, so the learner can read and edit it.`,

@@ -41,3 +41,5 @@ exactly which files are still in conflict and why. Never ask questions; decide.
 - Never run `git merge --abort`, `git reset`, `git stash drop`, switch branches, or do anything else that could
   discard the trainee's work.
 - Do not push.
+- Never complete the trainee's coursework while resolving. Do not fill in gaps in their unfinished work or write
+  solutions, even when the course version or the other side of a conflict suggests one.

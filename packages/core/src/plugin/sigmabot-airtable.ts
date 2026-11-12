@@ -8,11 +8,60 @@ import { gitExecutable } from "../util/git-executable.js"
 import type { SigmaBotProgress } from "./sigmabot-progress.js"
 import type { SigmaBotTranscript } from "./sigmabot-transcript.js"
 
+/** Where a trainee's records live: a base, its table of trainees, the column holding their email, and its transcripts table. */
+export interface Destination {
+  readonly base: string
+  readonly trainees: string
+  readonly emailField: string
+  readonly transcripts: string
+}
+
 /** The Sigma Labs base that holds the cohort and trainee tables the dashboard reads. */
 export const BASE = "app3kRCcq4MHcdSty"
 export const SUBMISSIONS = "tblMn7uvZe1P0tZ95"
 export const TRAINEES = "tbl8470yTXwItb189"
 export const TRANSCRIPTS = "tbllEidn62pmCNkV8"
+
+export const DEFAULT_DESTINATION: Destination = {
+  base: BASE,
+  trainees: TRAINEES,
+  emailField: "SigmaID",
+  transcripts: TRANSCRIPTS,
+}
+
+/** The base for the trainees on the course now: their rows are in its Assessment table, found by Email. */
+export const COURSE_DESTINATION: Destination = {
+  base: "appmoo1zTfcJHd6zd",
+  trainees: "tbl0VtH8F7WZ1czuC",
+  emailField: "Email",
+  transcripts: "tbldkYJbRYPAelZOy",
+}
+
+const COURSE_TRAINEES = new Set([
+  "trainee.aqlima.firdous@sigmalabs.co.uk",
+  "trainee.ben.smallbone@sigmalabs.co.uk",
+  "trainee.bethel.woldu@sigmalabs.co.uk",
+  "trainee.deniz.yarar@sigmalabs.co.uk",
+  "trainee.grace.collingwood@sigmalabs.co.uk",
+  "trainee.hector.leonvalle@sigmalabs.co.uk",
+  "trainee.krzysztof.hajda@sigmalabs.co.uk",
+  "trainee.madison.nelson@sigmalabs.co.uk",
+  "trainee.martha.smith@sigmalabs.co.uk",
+  "trainee.raul.jeevakumar@sigmalabs.co.uk",
+  "trainee.samah.sharif@sigmalabs.co.uk",
+  "trainee.shawn.awanayah@sigmalabs.co.uk",
+  "trainee.subhan.choudhury@sigmalabs.co.uk",
+  "trainee.tavis.stringer@sigmalabs.co.uk",
+  "trainee.tulsi.patel@sigmalabs.co.uk",
+  "trainee.will.ashfield@sigmalabs.co.uk",
+  "trainee.william.timothytino@sigmalabs.co.uk",
+  "trainee.yasmin.ali@sigmalabs.co.uk",
+])
+
+/** The course base for the trainees listed above, the original base for everyone else. */
+export function destination(email: string) {
+  return COURSE_TRAINEES.has(email.trim().toLowerCase()) ? COURSE_DESTINATION : DEFAULT_DESTINATION
+}
 
 export const ENDPOINT = "https://api.airtable.com"
 const TIMEOUT = Duration.seconds(10)
@@ -35,7 +84,8 @@ const SubmissionFields = Schema.Struct({
   Summary: Schema.optional(Schema.String),
 })
 
-const TraineeFields = Schema.Struct({ SigmaID: Schema.optional(Schema.String) })
+// Only the row id is used, so no fields are read.
+const TraineeFields = Schema.Struct({})
 
 const decodeSubmissions = HttpClientResponse.schemaBodyJson(Page(SubmissionFields))
 const decodeTrainees = HttpClientResponse.schemaBodyJson(Page(TraineeFields))
@@ -49,7 +99,8 @@ export type Email = Effect.Effect<string | undefined>
 /** Request plumbing shared by every table: auth, timeout, and finding the trainee's row by their email. */
 function connect(http: HttpClient.HttpClient, input: { readonly token: string; readonly endpoint?: string }) {
   const client = HttpClient.filterStatusOk(http)
-  const base = `${input.endpoint ?? ENDPOINT}/v0/${BASE}`
+  const host = `${input.endpoint ?? ENDPOINT}/v0`
+  const base = `${host}/${BASE}`
   const authorized = (request: HttpClientRequest.HttpClientRequest) =>
     request.pipe(HttpClientRequest.bearerToken(input.token), HttpClientRequest.acceptJson)
   const run = <A>(effect: Effect.Effect<A, unknown, never>) =>
@@ -58,17 +109,17 @@ function connect(http: HttpClient.HttpClient, input: { readonly token: string; r
       Effect.mapError((error) => (error instanceof Error ? error : new Error(String(error)))),
     )
 
-  const traineeID = Effect.fn("SigmaBotAirtable.traineeID")(function* (email: string) {
+  const traineeID = Effect.fn("SigmaBotAirtable.traineeID")(function* (email: string, where: Destination) {
     const page = yield* run(
       client
         .execute(
           authorized(
-            HttpClientRequest.get(`${base}/${TRAINEES}`).pipe(
+            HttpClientRequest.get(`${host}/${where.base}/${where.trainees}`).pipe(
               HttpClientRequest.setUrlParams({
                 // The email comes from a local file, so quotes and backslashes are escaped out of the formula.
-                filterByFormula: `LOWER({SigmaID})="${email.toLowerCase().replace(/[\\"]/g, "\\$&")}"`,
+                filterByFormula: `LOWER({${where.emailField}})="${email.toLowerCase().replace(/[\\"]/g, "\\$&")}"`,
                 maxRecords: "1",
-                "fields[]": "SigmaID",
+                "fields[]": where.emailField,
               }),
             ),
           ),
@@ -78,7 +129,7 @@ function connect(http: HttpClient.HttpClient, input: { readonly token: string; r
     return page.records[0]?.id
   })
 
-  return { client, base, authorized, run, traineeID }
+  return { client, host, base, authorized, run, traineeID }
 }
 
 /**
@@ -136,7 +187,9 @@ export function remote(
   ) {
     // An attempt from someone with no Trainees row, or not signed in, is still recorded; a coach can link it later.
     const email = yield* input.email
-    const trainee = email ? yield* traineeID(email).pipe(Effect.orElseSucceed(() => undefined)) : undefined
+    const trainee = email
+      ? yield* traineeID(email, DEFAULT_DESTINATION).pipe(Effect.orElseSucceed(() => undefined))
+      : undefined
     yield* run(
       client
         .execute(
@@ -174,13 +227,13 @@ const BATCH = 10
 
 /**
  * Backs up chat transcripts to Airtable: one row per chat, found again by its Session ID so every sync updates
- * the same row instead of adding a new one.
+ * the same row instead of adding a new one. Which base the rows go to depends on the trainee's email.
  */
 export function transcripts(
   http: HttpClient.HttpClient,
   input: { readonly token: string; readonly email: Email; readonly endpoint?: string },
 ) {
-  const { client, base, authorized, run, traineeID } = connect(http, input)
+  const { client, host, authorized, run, traineeID } = connect(http, input)
 
   const upsert = Effect.fn("SigmaBotAirtable.upsertTranscripts")(function* (rows: readonly SigmaBotTranscript.Row[]) {
     if (rows.length === 0) return
@@ -188,13 +241,14 @@ export function transcripts(
     const email = yield* input.email
     if (!email) return yield* Effect.fail(new Error("Not signed in yet, so there is no trainee to back up for"))
     // An email with no Trainees row still gets its transcripts backed up; a coach can link it later.
-    const trainee = yield* traineeID(email).pipe(Effect.orElseSucceed(() => undefined))
+    const where = destination(email)
+    const trainee = yield* traineeID(email, where).pipe(Effect.orElseSucceed(() => undefined))
     for (let start = 0; start < rows.length; start += BATCH)
       yield* run(
         client
           .execute(
             authorized(
-              HttpClientRequest.patch(`${base}/${TRANSCRIPTS}`).pipe(
+              HttpClientRequest.patch(`${host}/${where.base}/${where.transcripts}`).pipe(
                 HttpClientRequest.bodyJsonUnsafe({
                   performUpsert: { fieldsToMergeOn: ["Session ID"] },
                   records: rows.slice(start, start + BATCH).map((row) => ({

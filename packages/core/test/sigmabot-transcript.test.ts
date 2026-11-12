@@ -15,14 +15,14 @@ type Record = { fields: { [field: string]: unknown } }
 
 /** A stand-in Airtable: the Trainees lookup and an upserting transcripts table. */
 function airtable(options: { readonly failWrites?: boolean } = {}) {
-  const requests: { method: string; path: string; body?: unknown }[] = []
+  const requests: { method: string; path: string; query: string; body?: unknown }[] = []
   const rows = new Map<string, Record>()
   const server = Bun.serve({
     port: 0,
     async fetch(request) {
       const url = new URL(request.url)
       const body = request.method === "PATCH" ? ((await request.json()) as { records: Record[] }) : undefined
-      requests.push({ method: request.method, path: url.pathname, body })
+      requests.push({ method: request.method, path: url.pathname, query: decodeURIComponent(url.search), body })
       if (request.method === "GET")
         return Response.json({ records: [{ id: "recTrainee1", fields: { SigmaID: "ada.lovelace@sigmalabs.co.uk" } }] })
       if (options.failWrites) return new Response("nope", { status: 500 })
@@ -278,6 +278,39 @@ describe("SigmaBotTranscript.make", () => {
         expect(fake.rows.get("ses_a")!.fields.Trainee).toEqual(["recTrainee1"])
       }),
     ),
+  )
+
+  it.live("sends the listed course trainees to the course base, matched on its Email column", () =>
+    use({}, (fake) =>
+      Effect.gen(function* () {
+        const http = yield* HttpClient.HttpClient
+        const fakeChats = chats()
+        fakeChats.state.set("ses_a", { updated: 1, closed: false, messages: [user("hello")] })
+        yield* SigmaBotTranscript.make({
+          source: fakeChats.source,
+          storage: memoryStorage(),
+          remote: SigmaBotAirtable.transcripts(http, {
+            token: "t",
+            email: Effect.succeed<string | undefined>("trainee.yasmin.ali@sigmalabs.co.uk"),
+            endpoint: fake.endpoint,
+          }),
+        })()
+        expect(fake.requests.map((request) => request.path)).toEqual([
+          "/v0/appmoo1zTfcJHd6zd/tbl0VtH8F7WZ1czuC",
+          "/v0/appmoo1zTfcJHd6zd/tbldkYJbRYPAelZOy",
+        ])
+        expect(fake.requests[0]!.query).toContain('LOWER({Email})="trainee.yasmin.ali@sigmalabs.co.uk"')
+      }),
+    ),
+  )
+
+  it.effect("keeps everyone else on the original base, whatever the email's case", () =>
+    Effect.sync(() => {
+      expect(SigmaBotAirtable.destination("Trainee.Yasmin.Ali@SigmaLabs.co.uk")).toBe(
+        SigmaBotAirtable.COURSE_DESTINATION,
+      )
+      expect(SigmaBotAirtable.destination("chris.owen@sigmalabs.co.uk")).toBe(SigmaBotAirtable.DEFAULT_DESTINATION)
+    }),
   )
 
   it.live("still backs up when the email has no Trainees row", () =>

@@ -81,7 +81,8 @@ const cleared = `${FILE} was deleted or emptied, so the earlier notes no longer 
 
 const guidance = [
   `You keep long-term notes about the learner in ${FILE}. It lives in the project and is committed with it, so the learner can read and edit it.`,
-  "Decide for yourself when to write to it: call memory_save when you learn something durable and useful about the learner, such as their goals, background, strengths, recurring struggles, how they prefer to learn, or a misconception you corrected.",
+  "Save proactively and often. Call memory_save in the same turn as soon as you learn something useful about the learner: a misconception you corrected, something they struggled with or needed several hints for, something they now do well, a struggle that has come up again, how they prefer to learn, or their goals, background and pace. Do not wait for the end of the session or ask permission. A session where you taught something should end with at least one new note.",
+  "Read these notes before you start teaching, pitch your help from them and revisit earlier struggles.",
   "Keep each memory to one short sentence. Do not save secrets, credentials, sensitive personal details, passing remarks, or anything already noted. Call memory_forget to remove entries that are wrong or outdated. Use the tools rather than editing the file.",
 ].join("\n")
 

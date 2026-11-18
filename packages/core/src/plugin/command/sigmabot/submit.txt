@@ -49,6 +49,12 @@ away later answers. The quiz score is correct answers over questions asked.
 Call `submission_record` with the challenge key, the three scores as fractions and a one- or two-sentence
 summary for the coaches. It applies the gates and returns the verdict.
 
+Then call `memory_save` for this attempt, before you report. Save one note per thing worth remembering, at least
+one per attempt: each misconception or wrong quiz answer, the grader's main deduction, and anything they did
+notably well. Name the challenge and attempt number, for example "Shell challenge 01 attempt 2: still confused
+pwd with ls". If an earlier note says they struggled with something they have now got right, call
+`memory_forget` on it and save that they have mastered it.
+
 Then tell the trainee, in this order:
 
 1. The verdict in one line.
@@ -61,5 +67,5 @@ Then tell the trainee, in this order:
 
 - Never write, fix or suggest exact replacement code for the trainee's work. Name what is wrong and where.
 - Do not read, request or quote the rubric. Only the grader sees it.
-- Run `submission_prepare`, the grader, the quiz and `submission_record` once each per attempt.
+- Run `submission_prepare`, the grader, the quiz and `submission_record` once each per attempt. Always save memories for the attempt.
 - Do not edit files or run commands that change the repository.

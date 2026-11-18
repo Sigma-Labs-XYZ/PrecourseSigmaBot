@@ -33,6 +33,8 @@ const GRADER = "grader"
 
 const IT_SUPPORT = Agent.ID.make("it-support")
 
+const TUTOR = Agent.ID.make("tutor")
+
 const ChallengeInput = Schema.Struct({
   challenge: Schema.String.annotate({
     description: "The challenge key (its folder path from the course root) as listed in the /submit prompt.",
@@ -117,18 +119,33 @@ export const Plugin = define({
       return { course: loaded, challenge: found }
     })
 
+    const switchTo = (input: CommandInvocation, agent: Agent.ID) =>
+      Effect.gen(function* () {
+        const session = yield* ctx.session.get({ sessionID: input.sessionID })
+        if (session.agent !== agent) yield* ctx.session.switchAgent({ sessionID: input.sessionID, agent })
+      })
+
     yield* ctx.command.transform((editor) => {
+      // Grading is always run by the Tutor, whichever coach the trainee was talking to, so the conversation
+      // switches to it before the submission prompt goes in.
       editor.add({
         name: "submit",
         description: "submit your work for grading",
         execute: (input) =>
-          Effect.gen(function* () {
-            const loaded = yield* course
-            const passed = yield* progress.passed(loaded.id)
-            const located = yield* SigmaBotCourse.locate(processes, loaded, { argument: input.prompt.text, passed })
-            return SigmaBotCourse.describe(loaded, SigmaBotCourse.status(loaded, passed), located)
-          }).pipe(
-            Effect.catchTag("Tool.Error", (error) => Effect.succeed(`Status: unavailable. ${error.message}`)),
+          switchTo(input, TUTOR).pipe(
+            Effect.andThen(
+              Effect.gen(function* () {
+                const loaded = yield* course
+                const passed = yield* progress.passed(loaded.id)
+                const located = yield* SigmaBotCourse.locate(processes, loaded, {
+                  argument: input.prompt.text,
+                  passed,
+                })
+                return SigmaBotCourse.describe(loaded, SigmaBotCourse.status(loaded, passed), located)
+              }).pipe(
+                Effect.catchTag("Tool.Error", (error) => Effect.succeed(`Status: unavailable. ${error.message}`)),
+              ),
+            ),
             Effect.flatMap((summary) =>
               send(
                 input,
@@ -161,9 +178,7 @@ export const Plugin = define({
         description: "check your laptop is set up for the course",
         execute: (input) =>
           Effect.gen(function* () {
-            const session = yield* ctx.session.get({ sessionID: input.sessionID })
-            if (session.agent !== IT_SUPPORT)
-              yield* ctx.session.switchAgent({ sessionID: input.sessionID, agent: IT_SUPPORT })
+            yield* switchTo(input, IT_SUPPORT)
             const guide = yield* SigmaBotSetup.find(location.directory)
             yield* send(
               input,

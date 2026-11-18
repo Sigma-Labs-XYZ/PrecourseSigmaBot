@@ -26,8 +26,9 @@ returns the tasks, the functional result, the attempt number and the quiz guidan
 
 ### Gate 1 and 2: functional and non-functional
 
-Call the `subagent` tool with agent `grader`, description `Grading <challenge title>`, and this prompt, copying
-the `submission_prepare` output into it verbatim:
+The grader is an agent, not a tool: there is no tool called `grader` or anything like it. Start it by calling the
+`subagent` tool with its `agent` parameter set to `grader`, description `Grading <challenge title>`, and this
+prompt, copying the `submission_prepare` output into it verbatim:
 
 > Grade the submission for challenge `<key>`.
 > <the full submission_prepare output, minus the "Quiz guidance" section>

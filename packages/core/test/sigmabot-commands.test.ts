@@ -302,6 +302,23 @@ describe("SigmaBotCommandPlugin /submit", () => {
     ),
   )
 
+  it.live("always moves the conversation to the Tutor", () =>
+    withTempDir((tmp) =>
+      Effect.gen(function* () {
+        yield* Effect.promise(() => course(tmp.path))
+        const plugin = yield* boot(tmp.path)
+        yield* plugin.submit("")
+        // Already on the Tutor, so the agent is not switched.
+        expect(plugin.agents).toEqual([])
+
+        yield* plugin.setup("")
+        yield* plugin.submit("")
+        expect(plugin.agents).toEqual([Agent.ID.make("it-support"), Agent.ID.make("tutor")])
+        expect(plugin.prompts.at(-1)!.description).toBe("/submit")
+      }),
+    ),
+  )
+
   it.live("runs the gates in code: tests, grader-only rubric, verdict and unlocking", () =>
     withTempDir((tmp) =>
       Effect.gen(function* () {

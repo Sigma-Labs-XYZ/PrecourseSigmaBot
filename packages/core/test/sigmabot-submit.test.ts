@@ -25,8 +25,6 @@ const challenge = (directory: string, rubric: SigmaBotCourse.Challenge["rubric"]
   tasks: [],
 })
 
-const key = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-
 describe("SigmaBotSubmit", () => {
   it.effect("scores the pytest summary line", () =>
     Effect.sync(() => {
@@ -67,32 +65,41 @@ describe("SigmaBotSubmit", () => {
     ),
   )
 
-  it.effect("round-trips a rubric through AES-256-GCM", () =>
+  it.effect("decrypts openssl output, with or without the explanatory header", () =>
     Effect.sync(() => {
-      const encrypted = SigmaBotSubmit.encrypt("# Rubric\n\nSecret marks.\n", key)
-      expect(encrypted).not.toContain("Secret")
-      expect(SigmaBotSubmit.decrypt(encrypted, key)).toBe("# Rubric\n\nSecret marks.\n")
-      expect(() => SigmaBotSubmit.decrypt(encrypted, key.replace("0", "f"))).toThrow()
+      const fromOpenssl = "U2FsdGVkX1/lO+NBFaRsDeH9rCEwhfvXY1kxUVFEI5v592VbkNUg/R80J0cxF2Oz\n"
+      const withHeader = `ENCRYPTED FILE: quiz-guidance.md\n\nLeave it where it is.\n-----END HEADER-----\n${fromOpenssl}`
+      expect(SigmaBotSubmit.decrypt(withHeader)).toBe("# Quiz\n\nAsk about pwd.\n")
+      expect(SigmaBotSubmit.decrypt(fromOpenssl)).toBe("# Quiz\n\nAsk about pwd.\n")
+      expect(SigmaBotSubmit.decrypt(SigmaBotSubmit.encrypt("# Rubric\n"))).toBe("# Rubric\n")
+      expect(() => SigmaBotSubmit.decrypt("bm90IGVuY3J5cHRlZA==")).toThrow()
     }),
   )
 
-  live.live("reads a plain rubric and decrypts an encrypted one only with the key", () =>
+  live.live("reads plain and encrypted rubrics and quiz guidance", () =>
     withTempDir((tmp) =>
       Effect.gen(function* () {
+        const header = "ENCRYPTED FILE: x\n-----END HEADER-----\n"
         yield* Effect.promise(async () => {
           await fs.writeFile(path.join(tmp.path, "rubric.md"), "# Plain\n")
-          await fs.writeFile(path.join(tmp.path, "rubric.md.enc"), SigmaBotSubmit.encrypt("# Hidden\n", key))
+          await fs.writeFile(path.join(tmp.path, "rubric.enc"), header + SigmaBotSubmit.encrypt("# Hidden\n"))
+          await fs.writeFile(path.join(tmp.path, "quiz-guidance.md"), header + SigmaBotSubmit.encrypt("# Quiz\n"))
+          await fs.writeFile(path.join(tmp.path, "plain-quiz.md"), "# Open quiz\n")
+          await fs.writeFile(path.join(tmp.path, "broken.md"), header + "bm90IGVuY3J5cHRlZA==")
         })
         const plain = challenge(tmp.path, { path: path.join(tmp.path, "rubric.md"), encrypted: false })
-        const hidden = challenge(tmp.path, { path: path.join(tmp.path, "rubric.md.enc"), encrypted: true })
-        expect(yield* SigmaBotSubmit.rubric(plain, undefined)).toBe("# Plain\n")
-        expect(yield* SigmaBotSubmit.rubric(hidden, key)).toBe("# Hidden\n")
-        expect((yield* SigmaBotSubmit.rubric(hidden, undefined).pipe(Effect.flip)).message).toContain("no rubric key")
-        expect((yield* SigmaBotSubmit.rubric(challenge(tmp.path, undefined), key).pipe(Effect.flip)).message).toContain(
+        const hidden = challenge(tmp.path, { path: path.join(tmp.path, "rubric.enc"), encrypted: true })
+        expect(yield* SigmaBotSubmit.rubric(plain)).toBe("# Plain\n")
+        expect(yield* SigmaBotSubmit.rubric(hidden)).toBe("# Hidden\n")
+        expect((yield* SigmaBotSubmit.rubric(challenge(tmp.path, undefined)).pipe(Effect.flip)).message).toContain(
           "no rubric",
         )
         const missing = challenge(tmp.path, { path: path.join(tmp.path, "gone.md"), encrypted: false })
-        expect((yield* SigmaBotSubmit.rubric(missing, key).pipe(Effect.flip)).message).toContain("missing")
+        expect((yield* SigmaBotSubmit.rubric(missing).pipe(Effect.flip)).message).toContain("missing")
+        expect(yield* SigmaBotSubmit.guidance(path.join(tmp.path, "quiz-guidance.md"))).toBe("# Quiz\n")
+        expect(yield* SigmaBotSubmit.guidance(path.join(tmp.path, "plain-quiz.md"))).toBe("# Open quiz\n")
+        expect(yield* SigmaBotSubmit.guidance(path.join(tmp.path, "broken.md"))).toBeUndefined()
+        expect(yield* SigmaBotSubmit.guidance(path.join(tmp.path, "gone.md"))).toBeUndefined()
       }),
     ),
   )

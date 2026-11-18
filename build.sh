@@ -23,8 +23,6 @@ fi
 export SIGMABOT_OPENROUTER_KEY
 # Auth0 settings from .env (AUTH0_DOMAIN, AUTH0_CLIENT_ID); empty falls back to built-in defaults.
 export AUTH0_DOMAIN="${AUTH0_DOMAIN:-}" AUTH0_CLIENT_ID="${AUTH0_CLIENT_ID:-}"
-# Optional: decrypts encrypted rubrics during /submit. Sourced from .env as SIGMABOT_RUBRIC_KEY when set.
-export SIGMABOT_RUBRIC_KEY="${SIGMABOT_RUBRIC_KEY:-}"
 # Airtable token that /submit uses to record attempts. Taken from AIRTABLE_KEY in .env.
 SIGMABOT_AIRTABLE_KEY="${SIGMABOT_AIRTABLE_KEY:-${AIRTABLE_KEY:-}}"
 if [[ -z "$SIGMABOT_AIRTABLE_KEY" ]]; then

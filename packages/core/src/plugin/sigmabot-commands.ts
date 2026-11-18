@@ -7,7 +7,6 @@ import { CourseMap } from "@opencode/schema/course-map"
 import { AppProcess } from "@opencode/util/process"
 import { Effect, Schema } from "effect"
 import { HttpClient } from "effect/http"
-import fs from "fs/promises"
 import { Form } from "../form.js"
 import { Location } from "../location.js"
 import { Permission } from "../permission.js"
@@ -22,9 +21,6 @@ import { SigmaBotProgress } from "./sigmabot-progress.js"
 import { SigmaBotSubmit } from "./sigmabot-submit.js"
 import { SigmaBotUpdate } from "./sigmabot-update.js"
 
-// Injected by the CLI build from SIGMABOT_RUBRIC_KEY; undefined when running from source, where the
-// environment supplies it. Only needed once the course ships encrypted rubrics.
-declare const SIGMABOT_RUBRIC_KEY: string | undefined
 // Injected the same way from SIGMABOT_AIRTABLE_KEY. Without it, or without a GitHub fork to name the trainee,
 // attempts are only kept on this laptop.
 declare const SIGMABOT_AIRTABLE_KEY: string | undefined
@@ -74,7 +70,6 @@ export const Plugin = define({
         ? SigmaBotAirtable.remote(http, { token: airtableKey, handle, email: SigmaBotAccount.email() })
         : undefined,
     )
-    const rubricKey = typeof SIGMABOT_RUBRIC_KEY === "string" ? SIGMABOT_RUBRIC_KEY : process.env.SIGMABOT_RUBRIC_KEY
     // The template is long instructions for the model, so it goes in as a synthetic message that the UI shows
     // as one short line instead of filling the chat.
     const send = (input: CommandInvocation, command: string, text: string) =>
@@ -234,9 +229,7 @@ export const Plugin = define({
                   command: found.challenge.test,
                 })
               : undefined
-            const guidance = found.challenge.quiz
-              ? yield* Effect.promise(() => fs.readFile(found.challenge.quiz!, "utf8").catch(() => undefined))
-              : undefined
+            const guidance = found.challenge.quiz ? yield* SigmaBotSubmit.guidance(found.challenge.quiz) : undefined
             return {
               content: [
                 ...overview(found.course, found.challenge),
@@ -275,7 +268,7 @@ export const Plugin = define({
                 message: `Only the ${GRADER} agent may read a rubric. Delegate grading with the subagent tool.`,
               })
             const found = yield* challenge(input.challenge)
-            const rubric = yield* SigmaBotSubmit.rubric(found.challenge, rubricKey).pipe(
+            const rubric = yield* SigmaBotSubmit.rubric(found.challenge).pipe(
               Effect.mapError((error) => new ToolFailure({ message: error.message })),
             )
             return {

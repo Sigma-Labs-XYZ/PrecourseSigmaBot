@@ -1,6 +1,6 @@
 export * as SigmaBotSubmit from "./sigmabot-submit.js"
 
-import { createCipheriv, createDecipheriv, randomBytes } from "crypto"
+import { createCipheriv, createDecipheriv, pbkdf2Sync, randomBytes } from "crypto"
 import fs from "fs/promises"
 import { Effect, Schema } from "effect"
 import { ChildProcess } from "effect/process"
@@ -71,39 +71,59 @@ export class RubricError extends Schema.TaggedError<RubricError>()("SigmaBotSubm
   message: Schema.String,
 }) {}
 
-/** The challenge's marking rubric in plain text, decrypted with the key built into SigmaBot when shipped encrypted. */
-export const rubric = Effect.fn("SigmaBotSubmit.rubric")(function* (
-  challenge: SigmaBotCourse.Challenge,
-  key: string | undefined,
-) {
+/** The challenge's marking rubric in plain text, decrypted in memory when shipped encrypted. */
+export const rubric = Effect.fn("SigmaBotSubmit.rubric")(function* (challenge: SigmaBotCourse.Challenge) {
   if (!challenge.rubric) return yield* new RubricError({ message: `${challenge.key} has no rubric in its manifest` })
   const file = challenge.rubric
   const content = yield* Effect.tryPromise({
     try: () => fs.readFile(file.path, "utf8"),
     catch: () => new RubricError({ message: `The rubric file is missing: ${file.path}` }),
   })
-  if (!file.encrypted) return content
-  if (!key) return yield* new RubricError({ message: "The rubric is encrypted but SigmaBot has no rubric key" })
+  if (!file.encrypted && !isEncrypted(content)) return content
   return yield* Effect.try({
-    try: () => decrypt(content, key),
+    try: () => decrypt(content),
     catch: () => new RubricError({ message: `The rubric could not be decrypted: ${file.path}` }),
   })
 })
 
-/**
- * Rubric encryption: AES-256-GCM with a 32-byte key given as 64 hex characters. The file holds base64 of
- * `iv (12 bytes) || ciphertext || tag (16 bytes)`. The course repository encrypts with the same layout.
- */
-export function encrypt(plaintext: string, key: string) {
-  const iv = randomBytes(12)
-  const cipher = createCipheriv("aes-256-gcm", Buffer.from(key, "hex"), iv)
-  const body = Buffer.concat([cipher.update(plaintext, "utf8"), cipher.final()])
-  return Buffer.concat([iv, body, cipher.getAuthTag()]).toString("base64")
+/** The quiz guidance in plain text, decrypted in memory when shipped encrypted, or undefined when it cannot be read. */
+export const guidance = Effect.fn("SigmaBotSubmit.guidance")(function* (file: string) {
+  const content = yield* Effect.promise(() => fs.readFile(file, "utf8").catch(() => undefined))
+  if (content === undefined || !isEncrypted(content)) return content
+  return yield* Effect.try(() => decrypt(content)).pipe(Effect.orElseSucceed(() => undefined))
+})
+
+const HEADER_END = "-----END HEADER-----"
+const PASSWORD = "sigmalabs"
+const SALT_MAGIC = Buffer.from("Salted__")
+
+/** Whether the file carries the explanatory header the course repository puts on its encrypted marking material. */
+export function isEncrypted(content: string) {
+  return content.includes(HEADER_END)
 }
 
-export function decrypt(encoded: string, key: string) {
-  const data = Buffer.from(encoded.trim(), "base64")
-  const decipher = createDecipheriv("aes-256-gcm", Buffer.from(key, "hex"), data.subarray(0, 12))
-  decipher.setAuthTag(data.subarray(data.length - 16))
-  return Buffer.concat([decipher.update(data.subarray(12, data.length - 16)), decipher.final()]).toString("utf8")
+/**
+ * Encrypted marking material matches `openssl enc -aes-256-cbc -pbkdf2 -iter 100000 -md sha256 -a -pass pass:sigmalabs`:
+ * a text header ending in the `-----END HEADER-----` line, then base64 of `"Salted__" || salt (8 bytes) || ciphertext`.
+ */
+export function decrypt(content: string) {
+  const body = content.includes(HEADER_END) ? content.slice(content.indexOf(HEADER_END) + HEADER_END.length) : content
+  const data = Buffer.from(body.trim(), "base64")
+  if (!data.subarray(0, SALT_MAGIC.length).equals(SALT_MAGIC)) throw new Error("Missing OpenSSL salt header")
+  const { key, iv } = derive(data.subarray(8, 16))
+  const decipher = createDecipheriv("aes-256-cbc", key, iv)
+  return Buffer.concat([decipher.update(data.subarray(16)), decipher.final()]).toString("utf8")
+}
+
+export function encrypt(plaintext: string) {
+  const salt = randomBytes(8)
+  const { key, iv } = derive(salt)
+  const cipher = createCipheriv("aes-256-cbc", key, iv)
+  const encrypted = Buffer.concat([cipher.update(plaintext, "utf8"), cipher.final()])
+  return Buffer.concat([SALT_MAGIC, salt, encrypted]).toString("base64")
+}
+
+function derive(salt: Buffer) {
+  const bytes = pbkdf2Sync(PASSWORD, salt, 100_000, 48, "sha256")
+  return { key: bytes.subarray(0, 32), iv: bytes.subarray(32) }
 }

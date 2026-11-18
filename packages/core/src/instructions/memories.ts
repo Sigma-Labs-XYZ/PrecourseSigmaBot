@@ -7,7 +7,7 @@ import { Instructions } from "./index.js"
 
 /** Where the coach keeps notes about the learner, relative to the project root. It is committed with the project. */
 export const FILE = ".coach/MEMORIES.md"
-export const MAX_BYTES = 8_000
+export const MAX_BYTES = 32_000
 
 const HEADER =
   [
@@ -81,9 +81,17 @@ const cleared = `${FILE} was deleted or emptied, so the earlier notes no longer 
 
 const guidance = [
   `You keep long-term notes about the learner in ${FILE}. It lives in the project and is committed with it, so the learner can read and edit it.`,
-  "Save proactively and often. Call memory_save in the same turn as soon as you learn something useful about the learner: a misconception you corrected, something they struggled with or needed several hints for, something they now do well, a struggle that has come up again, how they prefer to learn, or their goals, background and pace. Do not wait for the end of the session or ask permission. A session where you taught something should end with at least one new note.",
-  "Read these notes before you start teaching, pitch your help from them and revisit earlier struggles.",
-  "Keep each memory to one short sentence. Do not save secrets, credentials, sensitive personal details, passing remarks, or anything already noted. Call memory_forget to remove entries that are wrong or outdated. Use the tools rather than editing the file.",
+  "Keep a comprehensive record. Calling memory_save should be one of your most frequent actions: most turns where the learner says or does something should produce at least one note. When in doubt, save. Call it in the same turn, before or alongside your reply, without asking permission and without waiting for the end of the session. Save each of these as soon as it happens:",
+  "- Facts about the learner: name, background, job or studies, prior experience, goals, motivation, pace, schedule, tools and setup, likes and dislikes.",
+  "- Struggles: an error they hit, a concept or command they found confusing, a misconception you corrected, a step that needed hints (and how many), a point where they got stuck or frustrated.",
+  "- Successes: a step, check or challenge they completed, something they got right first time, something they explained well, a struggle they have now overcome.",
+  "- Questions they ask: what they asked about and what it shows about their understanding or curiosity.",
+  "- How they learn: whether they prefer examples, explanations or trying first, how much help they want, how they respond to hints, and what worked or did not work when you taught them.",
+  "- Progress: which module, challenge and step they are on, and when they start, finish or skip something.",
+  "- Patterns: something that keeps coming up again, or a change since an earlier note.",
+  "Make each note specific and self-contained: name the challenge, command or concept involved, for example 'Mixed up git add and git commit in 02-git/01-first-commit; fixed after one hint.'",
+  "Read these notes before you start teaching, pitch your help from them, revisit earlier struggles and acknowledge progress.",
+  "Keep each memory to one sentence. Do not save secrets, credentials or sensitive personal details such as health, religion, politics, sexuality or finances. When a note becomes wrong or outdated, call memory_forget on it and save the updated version. Use the tools rather than editing the file.",
 ].join("\n")
 
 function render(content: string) {

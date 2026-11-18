@@ -3,6 +3,7 @@ export * as SigmaBotCommandPlugin from "./sigmabot-commands.js"
 import { ToolFailure } from "@opencode/ai/effect"
 import type { CommandInvocation } from "@opencode/plugin/effect/command"
 import { define } from "@opencode/plugin/effect/plugin"
+import { Agent } from "@opencode/schema/agent"
 import { CourseMap } from "@opencode/schema/course-map"
 import { AppProcess } from "@opencode/util/process"
 import { Effect, Schema } from "effect"
@@ -12,12 +13,14 @@ import { Location } from "../location.js"
 import { Permission } from "../permission.js"
 import { ShellSelect } from "../shell/select.js"
 import { QuestionTool } from "../tool/plugin/question.js"
+import SETUP from "./command/sigmabot/setup.txt"
 import SUBMIT from "./command/sigmabot/submit.txt"
 import UPDATE from "./command/sigmabot/update.txt"
 import { SigmaBotAccount } from "./sigmabot-account.js"
 import { SigmaBotAirtable } from "./sigmabot-airtable.js"
 import { SigmaBotCourse } from "./sigmabot-course.js"
 import { SigmaBotProgress } from "./sigmabot-progress.js"
+import { SigmaBotSetup } from "./sigmabot-setup.js"
 import { SigmaBotSubmit } from "./sigmabot-submit.js"
 import { SigmaBotUpdate } from "./sigmabot-update.js"
 
@@ -27,6 +30,8 @@ declare const SIGMABOT_AIRTABLE_KEY: string | undefined
 
 /** The only agent allowed to read a rubric, so its plain text stays out of the trainee's conversation. */
 const GRADER = "grader"
+
+const IT_SUPPORT = Agent.ID.make("it-support")
 
 const ChallengeInput = Schema.Struct({
   challenge: Schema.String.annotate({
@@ -148,6 +153,24 @@ export const Plugin = define({
               ),
             ),
           ),
+      })
+      // Setup guides install software and change config, which only IT Support's shell is allowed to do, so the
+      // conversation switches to it before the guide goes in.
+      editor.add({
+        name: "setup",
+        description: "check your laptop is set up for the course",
+        execute: (input) =>
+          Effect.gen(function* () {
+            const session = yield* ctx.session.get({ sessionID: input.sessionID })
+            if (session.agent !== IT_SUPPORT)
+              yield* ctx.session.switchAgent({ sessionID: input.sessionID, agent: IT_SUPPORT })
+            const guide = yield* SigmaBotSetup.find(location.directory)
+            yield* send(
+              input,
+              "setup",
+              fill(SETUP, input).replace("$SETUP", () => SigmaBotSetup.describe(guide, location.directory)),
+            )
+          }),
       })
     })
 

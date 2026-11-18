@@ -7,6 +7,7 @@ import type { CommandDefinition } from "@opencode/plugin/effect/command"
 import type { StorageDomain } from "@opencode/plugin/effect/storage"
 import { Form } from "@opencode/core/form"
 import { Location } from "@opencode/core/location"
+import { Project } from "@opencode/core/project"
 import { SigmaBotCommandPlugin } from "@opencode/core/plugin/sigmabot-commands"
 import { AbsolutePath } from "@opencode/core/schema"
 import { ShellSelect } from "@opencode/core/shell/select"
@@ -15,6 +16,7 @@ import { QuestionTool } from "@opencode/core/tool/plugin/question"
 import type { Info } from "@opencode/schema/tool"
 import { Agent } from "@opencode/schema/agent"
 import { CourseMap } from "@opencode/schema/course-map"
+import { Money } from "@opencode/schema/money"
 import { Session } from "@opencode/schema/session"
 import { SessionInbox } from "@opencode/schema/session-inbox"
 import { SessionMessage } from "@opencode/schema/session-message"
@@ -140,6 +142,7 @@ function memoryStorage(): StorageDomain {
 /** Boots the plugin against `directory`, capturing registered commands, tools and the prompts it sends. */
 const boot = Effect.fn(function* (directory: string) {
   const prompts: { text: string; description?: string }[] = []
+  const agents: Agent.ID[] = []
   const commands = new Map<string, CommandDefinition>()
   const tools = new Map<string, Info>()
   yield* SigmaBotCommandPlugin.Plugin.effect(
@@ -175,6 +178,19 @@ const boot = Effect.fn(function* (directory: string) {
           }),
       },
       session: {
+        get: (input) =>
+          Effect.succeed(
+            Session.Info.make({
+              id: input.sessionID,
+              projectID: Project.ID.global,
+              agent: agents.at(-1) ?? Agent.ID.make("tutor"),
+              cost: Money.USD.zero,
+              tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
+              time: { created: DateTime.makeUnsafe(0), updated: DateTime.makeUnsafe(0) },
+              location: Location.Ref.make({ directory: AbsolutePath.make(directory) }),
+            }),
+          ),
+        switchAgent: (input) => Effect.sync(() => void agents.push(input.agent)),
         synthetic: (input) =>
           Effect.sync(() => {
             prompts.push({ text: input.text, description: input.description })
@@ -207,7 +223,52 @@ const boot = Effect.fn(function* (directory: string) {
       Effect.map((result) => String(result.content)),
       Effect.catchTag("Tool.Error", (error) => Effect.succeed(`ERROR: ${error.message}`)),
     )
-  return { prompts, commands, tools, submit, call, context }
+  const setup = (text: string) =>
+    commands.get("setup")!.execute({ sessionID, prompt: { text }, delivery: "steer" }).pipe(Effect.asVoid)
+  return { prompts, agents, commands, tools, submit, setup, call, context }
+})
+
+describe("SigmaBotCommandPlugin /setup", () => {
+  it.live("switches to IT Support and hands it the closest setup guide", () =>
+    withTempDir((tmp) =>
+      Effect.gen(function* () {
+        const nested = path.join(tmp.path, "01-shell", "01-where-am-i")
+        yield* Effect.promise(async () => {
+          await fs.mkdir(path.join(tmp.path, ".git"))
+          await fs.mkdir(path.join(tmp.path, "docs"))
+          await fs.mkdir(nested, { recursive: true })
+        })
+
+        const missing = yield* boot(nested)
+        yield* missing.setup("")
+        expect(missing.agents).toEqual([Agent.ID.make("it-support")])
+        expect(missing.prompts[0]!.description).toBe("/setup")
+        expect(missing.prompts[0]!.text).toContain(`No setup guide was found in ${nested}`)
+        expect(missing.prompts[0]!.text).not.toContain("$SETUP")
+
+        yield* Effect.promise(async () => {
+          await fs.writeFile(path.join(tmp.path, "docs", "Getting-Started.md"), "Read the README.\n")
+          await fs.writeFile(path.join(tmp.path, "INSTALL.md"), "Install Homebrew.\n")
+          await fs.writeFile(path.join(tmp.path, "SETUP.md"), "# Setup\n\n```bash\nbrew install python\n```\n")
+        })
+        const plugin = yield* boot(nested)
+        yield* plugin.setup("python")
+        yield* plugin.setup("again")
+        // Already on IT Support the second time, so the agent is not switched again.
+        expect(plugin.agents).toEqual([Agent.ID.make("it-support")])
+        const prompt = plugin.prompts[0]!.text
+        expect(prompt).toContain("User input: python")
+        expect(prompt).toContain(`Setup guide: ${path.join(tmp.path, "SETUP.md")}`)
+        expect(prompt).toContain("brew install python")
+        expect(prompt).not.toContain("Install Homebrew")
+
+        yield* Effect.promise(() => fs.rm(path.join(tmp.path, "SETUP.md")))
+        const fallback = yield* boot(nested)
+        yield* fallback.setup("")
+        expect(fallback.prompts[0]!.text).toContain(`Setup guide: ${path.join(tmp.path, "INSTALL.md")}`)
+      }),
+    ),
+  )
 })
 
 describe("SigmaBotCommandPlugin /submit", () => {
@@ -221,7 +282,7 @@ describe("SigmaBotCommandPlugin /submit", () => {
 
         yield* Effect.promise(() => course(tmp.path))
         const plugin = yield* boot(path.join(tmp.path, "01-shell"))
-        expect([...plugin.commands.keys()].sort()).toEqual(["submit", "update"])
+        expect([...plugin.commands.keys()].sort()).toEqual(["setup", "submit", "update"])
         expect([...plugin.tools.keys()].sort()).toEqual([
           "submission_choose",
           "submission_prepare",

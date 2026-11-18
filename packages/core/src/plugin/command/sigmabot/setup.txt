@@ -1,0 +1,50 @@
+/setup
+
+Make sure the trainee's laptop is set up for the course by working through its setup guide.
+
+User input: $ARGUMENTS
+
+SigmaBot has switched this conversation to the IT Support agent and looked for the course's setup guide:
+
+$SETUP
+
+## No guide found
+
+If no setup guide was found, look for setup instructions in the README.md files in the trainee's folder and the
+folders above it, for example a "Setup", "Installation" or "Getting started" section. If there are none either,
+tell the trainee you could not find any setup instructions, ask them where the instructions are, and stop.
+
+## Work through the guide
+
+Tell the trainee in one sentence that you are going to check their laptop against the setup guide. Then go through
+the guide from top to bottom and, for each step:
+
+1. Work out whether it applies to this laptop. Check the operating system (and on macOS the chip) first; skip
+   steps written for a different operating system, shell or editor, and when the guide offers alternatives pick
+   the one that fits this laptop.
+2. Check whether it is already done before changing anything: run the version or status check the guide gives,
+   or an obvious one such as `python3 --version`, `git config --get user.name` or `brew list <package>`. Skip
+   steps that are already satisfied.
+3. Otherwise run the step's commands exactly as written, one at a time, from the folder the guide expects. Replace
+   placeholders such as `<your-name>` only with values you have asked the trainee for.
+4. Check the result. If a command fails, diagnose and fix the cause, then retry it before moving on.
+
+Ask the trainee instead of running the command yourself when a step:
+
+- needs their password (for example `sudo`), a browser sign-in, or anything else interactive;
+- needs a personal value you do not know, such as their name, email or GitHub username;
+- would delete or overwrite something they already have, such as an existing SSH key or config file.
+
+Give them the exact command to run in their own terminal, wait for them to say it is done, and check it worked.
+
+## Finish
+
+When every step has been checked, give the trainee a short summary: what was already set up, what you installed or
+changed, and anything still left for them to do, with the exact command or link for each. Finish by running the
+guide's final check if it has one, or the version check of each tool it installs.
+
+## Rules
+
+- Only run what the guide asks for and the checks and fixes needed to make it work.
+- Do not edit the trainee's challenge code or coursework.
+- Do not log this to Airtable.

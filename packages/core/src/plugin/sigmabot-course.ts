@@ -8,6 +8,13 @@ import type { CourseMap } from "@opencode/schema/course-map"
 import type { AppProcess } from "@opencode/util/process"
 import { gitExecutable } from "../util/git-executable.js"
 
+/**
+ * Hidden folder that holds a course's, module's or challenge's `manifest.json`, and for a challenge its `rubric.json`
+ * and `quiz-guidance.md`. Paths inside a manifest are relative to the manifest file, so a file in the folder that
+ * holds `.course` is `../name`, and commands run with that folder as the working directory.
+ */
+export const FOLDER = ".course"
+
 const Command = Schema.NullOr(Schema.Struct({ command: Schema.String }))
 
 const Task = Schema.Struct({
@@ -20,7 +27,7 @@ const Task = Schema.Struct({
   setup: Schema.optionalKey(Command),
 })
 
-/** One `manifest.json`, as the course content repository writes it at every level. */
+/** One `.course/manifest.json`, as the course content repository writes it at every level. */
 export const Manifest = Schema.Struct({
   id: Schema.String,
   type: Schema.Literals(["course", "module", "chapter", "challenge"]),
@@ -81,13 +88,16 @@ export interface Challenge {
   readonly id: string
   readonly title: string
   readonly summary?: string
+  /** The challenge folder, which holds its `.course` folder. */
   readonly directory: string
   readonly module: Module
   readonly chapter?: { readonly id: string; readonly title: string }
   readonly sandbox?: string
   readonly run?: string
   readonly test?: string
+  /** Absolute path of the rubric in the challenge's `.course` folder. */
   readonly rubric?: { readonly path: string; readonly encrypted: boolean }
+  /** Absolute path of the quiz guidance in the challenge's `.course` folder. */
   readonly quiz?: string
   readonly tasks: readonly Task[]
 }
@@ -129,7 +139,7 @@ export const load = Effect.fn("SigmaBotCourse.load")(function* (directory: strin
   const modules: Module[] = []
   const challenges: Challenge[] = []
   for (const child of manifest.children ?? []) {
-    const dir = path.join(root, child.path)
+    const dir = path.join(root, FOLDER, child.path)
     const entry = yield* read(dir)
     if (!entry) continue
     const module = { id: entry.id, title: entry.title, stream: entry.stream, requires: child.requires ?? [] }
@@ -261,9 +271,9 @@ function percent(value: number) {
   return `${Math.round(value * 100)}%`
 }
 
-/** The manifest in `directory`, or undefined when the folder has none. A manifest that fails to parse is an error. */
+/** The manifest in `directory`'s `.course` folder, or undefined when it has none. A manifest that fails to parse is an error. */
 const read = Effect.fn("SigmaBotCourse.read")(function* (directory: string) {
-  const file = path.join(directory, "manifest.json")
+  const file = path.join(directory, FOLDER, "manifest.json")
   const text = yield* Effect.promise(() => fs.readFile(file, "utf8").catch(() => undefined))
   if (text === undefined) return undefined
   return yield* decodeManifest(text).pipe(
@@ -288,6 +298,9 @@ const collect: (
   into: Challenge[],
 ) => Effect.Effect<void, ManifestError> = Effect.fn("SigmaBotCourse.collect")(
   function* (root, directory, manifest, module, chapter, into) {
+    // Manifest paths are relative to the `.course` folder; commands run from the folder that holds it, so task
+    // scripts are reported relative to that folder.
+    const files = path.join(directory, FOLDER)
     if (manifest.type === "challenge") {
       into.push({
         key: path.relative(root, directory).split(path.sep).join("/"),
@@ -301,13 +314,15 @@ const collect: (
         run: manifest.run?.command,
         test: manifest.test?.command,
         rubric: manifest.rubric
-          ? { path: path.join(directory, manifest.rubric.path), encrypted: manifest.rubric.encrypted }
+          ? { path: path.join(files, manifest.rubric.path), encrypted: manifest.rubric.encrypted }
           : undefined,
-        quiz: manifest.quiz ? path.join(directory, manifest.quiz.guidance) : undefined,
+        quiz: manifest.quiz ? path.join(files, manifest.quiz.guidance) : undefined,
         tasks: (manifest.tasks ?? []).map((task) => ({
           id: task.id,
           title: task.title,
-          script: task.script,
+          script: task.script
+            ? path.relative(directory, path.join(files, task.script)).split(path.sep).join("/")
+            : undefined,
           run: task.run?.command,
           test: task.test?.command,
           setup: task.setup?.command,
@@ -317,7 +332,7 @@ const collect: (
     }
     const own = manifest.type === "module" ? chapter : { id: manifest.id, title: manifest.title }
     for (const child of manifest.children ?? []) {
-      const dir = path.join(directory, child.path)
+      const dir = path.join(files, child.path)
       const entry = yield* read(dir)
       if (!entry) continue
       yield* collect(root, dir, entry, module, own, into)

@@ -44,6 +44,35 @@ Slash commands are built in too ([`packages/core/src/plugin/sigmabot-commands.ts
 | `/submit` | Switches the conversation to the `tutor` agent and submits the trainee's work on the current challenge for grading.                                                                                                                                                                                                                                                                                                                                                                                                               |
 | `/report` | Files a GitHub issue about a problem with the course content.                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 
+## Course layout
+
+`/submit` reads the course from the trainee's fork of [SelfPacedPreCourse](https://github.com/Sigma-Labs-XYZ/SelfPacedPreCourse) ([`packages/core/src/plugin/sigmabot-course.ts`](packages/core/src/plugin/sigmabot-course.ts)). Everything SigmaBot needs lives in a hidden `.course` folder, so the trainee's folders show only the work:
+
+```
+<course>/
+  .course/manifest.json          the course: gates and its modules, in order
+  01-shell/
+    .course/manifest.json        a module (or chapter): its children, in order
+    01-getting-around/           a challenge
+      0.0-overview.md
+      1.0-morning-walk-round.sh
+      .course/
+        manifest.json            tasks, test commands and where its files are
+        rubric.json              what the grader marks against
+        quiz-guidance.md         what the quiz is written from
+```
+
+- SigmaBot finds the course by walking up from the working directory to the nearest `.course/manifest.json` of type `course`. A challenge's key is its folder path from the course root, such as `01-shell/01-getting-around`.
+- Paths in a manifest are relative to the manifest file: a child is `../01-getting-around`, a file next to `.course` is `../name`, and `rubric.json` or `quiz-guidance.md` is just the name. Task commands run with the folder that holds `.course` as the working directory, so task scripts are reported relative to it.
+- A child whose folder does not exist yet (planned content) is skipped.
+- `rubric.json` and `quiz-guidance.md` may be encrypted so trainees cannot read the answers. SigmaBot decrypts them in memory during `/submit` and never writes the plain text to disk; plain files work too, so content can stay readable while it is being written. An encrypted file is a text header ending in a `-----END HEADER-----` line, then the output of this command, which is also how to decrypt it with `openssl enc -d`:
+
+  ```sh
+  openssl enc -aes-256-cbc -pbkdf2 -iter 100000 -md sha256 -a -pass pass:sigmalabs
+  ```
+
+  The password is always `sigmalabs` and is built into SigmaBot ([`sigmabot-submit.ts`](packages/core/src/plugin/sigmabot-submit.ts)). It keeps the answers out of sight while the course is worked through; it is not a secret.
+
 ## Contributing
 
 See [CONTRIBUTING.md](./CONTRIBUTING.md). SigmaBot is built on [OpenCode](https://github.com/anomalyco/opencode); see [LICENSE](./LICENSE).

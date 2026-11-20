@@ -63,9 +63,10 @@ const it = testEffect(
 
 const KEYS = ["01-shell/01-where-am-i", "01-shell/02-reading", "02-python/01-till"]
 
+/** Writes `<dir>/.course/manifest.json`, where every manifest lives. */
 async function manifest(dir: string, value: unknown) {
-  await fs.mkdir(dir, { recursive: true })
-  await fs.writeFile(path.join(dir, "manifest.json"), JSON.stringify(value))
+  await fs.mkdir(path.join(dir, ".course"), { recursive: true })
+  await fs.writeFile(path.join(dir, ".course", "manifest.json"), JSON.stringify(value))
 }
 
 /** A two-module course whose Python challenge "tests" are an echo of a pytest summary line. */
@@ -77,8 +78,8 @@ async function course(root: string) {
     title: "Course",
     gates: { functional: 0.9, nonFunctional: 0.9, quiz: null },
     children: [
-      { id: "shell", path: "01-shell", requires: [] },
-      { id: "python", path: "02-python", requires: ["shell"] },
+      { id: "shell", path: "../01-shell", requires: [] },
+      { id: "python", path: "../02-python", requires: ["shell"] },
     ],
   })
   await manifest(path.join(root, "01-shell"), {
@@ -87,8 +88,8 @@ async function course(root: string) {
     type: "module",
     title: "Shell",
     children: [
-      { id: "where-am-i", path: "01-where-am-i" },
-      { id: "reading", path: "02-reading" },
+      { id: "where-am-i", path: "../01-where-am-i" },
+      { id: "reading", path: "../02-reading" },
     ],
   })
   await manifest(path.join(root, KEYS[0]!), {
@@ -98,10 +99,10 @@ async function course(root: string) {
     title: "Where am I?",
     rubric: { path: "rubric.md", encrypted: false },
     quiz: { guidance: "quiz-guidance.md" },
-    tasks: [{ id: "1.0", title: "Walk", script: "1.0-walk.sh", run: { command: "bash 1.0-walk.sh" } }],
+    tasks: [{ id: "1.0", title: "Walk", script: "../1.0-walk.sh", run: { command: "bash 1.0-walk.sh" } }],
   })
-  await fs.writeFile(path.join(root, KEYS[0]!, "rubric.md"), "# Rubric\n\nSecret marks.\n")
-  await fs.writeFile(path.join(root, KEYS[0]!, "quiz-guidance.md"), "# Quiz\n\nAsk about pwd.\n")
+  await fs.writeFile(path.join(root, KEYS[0]!, ".course/rubric.md"), "# Rubric\n\nSecret marks.\n")
+  await fs.writeFile(path.join(root, KEYS[0]!, ".course/quiz-guidance.md"), "# Quiz\n\nAsk about pwd.\n")
   await fs.writeFile(path.join(root, KEYS[0]!, "1.0-walk.sh"), "pwd\n")
   await manifest(path.join(root, KEYS[1]!), { manifestVersion: 1, id: "reading", type: "challenge", title: "Reading" })
   await manifest(path.join(root, "02-python"), {
@@ -109,7 +110,7 @@ async function course(root: string) {
     id: "python",
     type: "module",
     title: "Python",
-    children: [{ id: "till", path: "01-till" }],
+    children: [{ id: "till", path: "../01-till" }],
   })
   await manifest(path.join(root, KEYS[2]!), {
     manifestVersion: 1,
@@ -117,7 +118,7 @@ async function course(root: string) {
     type: "challenge",
     title: "The till",
     test: { command: "echo ===== 2 passed, 1 failed in 0.1s =====" },
-    tasks: [{ id: "1.0", title: "Price", script: "1.0-price.py", test: { command: "echo test_1_0" } }],
+    tasks: [{ id: "1.0", title: "Price", script: "../1.0-price.py", test: { command: "echo test_1_0" } }],
   })
   await initGit(root, "-b", "main")
   await git(root, "add", ".")

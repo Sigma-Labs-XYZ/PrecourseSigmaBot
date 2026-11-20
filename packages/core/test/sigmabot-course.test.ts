@@ -14,9 +14,10 @@ const it = testEffect(LayerNode.compile(AppProcess.node))
 
 const json = (value: unknown) => JSON.stringify(value, null, 2)
 
+/** Writes `<dir>/.course/manifest.json`, where every manifest lives. */
 async function manifest(dir: string, value: unknown) {
-  await fs.mkdir(dir, { recursive: true })
-  await fs.writeFile(path.join(dir, "manifest.json"), json(value))
+  await fs.mkdir(path.join(dir, ".course"), { recursive: true })
+  await fs.writeFile(path.join(dir, ".course", "manifest.json"), json(value))
 }
 
 /**
@@ -32,9 +33,9 @@ async function course(root: string) {
     version: "0.1.0",
     gates: { functional: 0.9, nonFunctional: 0.9, quiz: null },
     children: [
-      { id: "shell-and-git", path: "01-shell-and-git", status: "built", requires: [] },
-      { id: "python", path: "02-python", status: "building", requires: ["shell-and-git"] },
-      { id: "sql", path: "03-sql", status: "planned", requires: ["shell-and-git"] },
+      { id: "shell-and-git", path: "../01-shell-and-git", status: "built", requires: [] },
+      { id: "python", path: "../02-python", status: "building", requires: ["shell-and-git"] },
+      { id: "sql", path: "../03-sql", status: "planned", requires: ["shell-and-git"] },
     ],
   })
   await manifest(path.join(root, "01-shell-and-git"), {
@@ -43,7 +44,7 @@ async function course(root: string) {
     type: "module",
     title: "Shell and Git",
     stream: "core",
-    children: [{ id: "getting-around", path: "01-getting-around" }],
+    children: [{ id: "getting-around", path: "../01-getting-around" }],
   })
   await manifest(path.join(root, "01-shell-and-git/01-getting-around"), {
     manifestVersion: 1,
@@ -51,8 +52,8 @@ async function course(root: string) {
     type: "chapter",
     title: "Getting around",
     children: [
-      { id: "where-am-i", path: "01-where-am-i" },
-      { id: "reading-the-files", path: "02-reading-the-files" },
+      { id: "where-am-i", path: "../01-where-am-i" },
+      { id: "reading-the-files", path: "../02-reading-the-files" },
     ],
   })
   await manifest(path.join(root, "01-shell-and-git/01-getting-around/01-where-am-i"), {
@@ -69,7 +70,7 @@ async function course(root: string) {
       {
         id: "1.0",
         title: "Morning walk-round",
-        script: "1.0-morning-walk-round.sh",
+        script: "../1.0-morning-walk-round.sh",
         run: { command: "bash 1.0-morning-walk-round.sh" },
       },
     ],
@@ -85,7 +86,7 @@ async function course(root: string) {
     title: "Reading the files",
     sandbox: "~/hm-sandbox/reading",
     tasks: [
-      { id: "1.0", title: "The handover", script: "1.0-the-handover.sh", setup: { command: "bash setup.sh 1.0" } },
+      { id: "1.0", title: "The handover", script: "../1.0-the-handover.sh", setup: { command: "bash setup.sh 1.0" } },
     ],
   })
   await manifest(path.join(root, "02-python"), {
@@ -94,7 +95,7 @@ async function course(root: string) {
     type: "module",
     title: "Python",
     stream: "python",
-    children: [{ id: "the-till-line", path: "01-the-till-line" }],
+    children: [{ id: "the-till-line", path: "../01-the-till-line" }],
   })
   await manifest(path.join(root, "02-python/01-the-till-line"), {
     manifestVersion: 1,
@@ -104,7 +105,12 @@ async function course(root: string) {
     test: { command: "pytest tests" },
     rubric: { path: "rubric.md.enc", encrypted: true },
     tasks: [
-      { id: "1.0", title: "Price a till line", script: "1.0-price.py", test: { command: "pytest tests -k test_1_0" } },
+      {
+        id: "1.0",
+        title: "Price a till line",
+        script: "../1.0-price.py",
+        test: { command: "pytest tests -k test_1_0" },
+      },
     ],
   })
   await fs.writeFile(path.join(root, "02-python/01-the-till-line/1.0-price.py"), "# todo\n")
@@ -136,8 +142,9 @@ describe("SigmaBotCourse", () => {
           title: "Where am I?",
           module: { id: "shell-and-git", stream: "core", requires: [] },
           chapter: { id: "getting-around", title: "Getting around" },
-          rubric: { path: path.join(tmp.path, keys[0]!, "rubric.md"), encrypted: false },
-          quiz: path.join(tmp.path, keys[0]!, "quiz-guidance.md"),
+          directory: path.join(tmp.path, keys[0]!),
+          rubric: { path: path.join(tmp.path, keys[0]!, ".course/rubric.md"), encrypted: false },
+          quiz: path.join(tmp.path, keys[0]!, ".course/quiz-guidance.md"),
           tasks: [
             {
               id: "1.0",
@@ -165,10 +172,10 @@ describe("SigmaBotCourse", () => {
       Effect.gen(function* () {
         expect(yield* load(tmp.path)).toBeUndefined()
         yield* Effect.promise(() => course(tmp.path))
-        yield* Effect.promise(() => fs.writeFile(path.join(tmp.path, "02-python/manifest.json"), "{ not json"))
+        yield* Effect.promise(() => fs.writeFile(path.join(tmp.path, "02-python/.course/manifest.json"), "{ not json"))
         const error = yield* load(tmp.path).pipe(Effect.flip)
         expect(error._tag).toBe("SigmaBotCourse.ManifestError")
-        expect(error.path).toBe(path.join(tmp.path, "02-python/manifest.json"))
+        expect(error.path).toBe(path.join(tmp.path, "02-python/.course/manifest.json"))
       }),
     ),
   )

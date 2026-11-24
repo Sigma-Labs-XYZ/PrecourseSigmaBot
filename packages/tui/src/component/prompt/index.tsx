@@ -1126,6 +1126,18 @@ export function Prompt(props: PromptProps) {
     }
     if (move.creating()) return false
     if (auto()?.visible) return false
+    // Editors such as VS Code type a virtualenv `source .../activate` command into a
+    // freshly opened terminal, which lands in the composer as the first chat line.
+    if (!props.sessionID && /^source\s/.test(store.prompt.text.trimStart())) {
+      const rest = store.prompt.text.trimStart().replace(/^[^\n]*\n?/, "")
+      if (!rest.trim()) {
+        resetComposer()
+        return true
+      }
+      input.setText(rest)
+      setStore("prompt", "text", rest)
+      syncExtmarksWithPromptParts()
+    }
     const trimmed = store.prompt.text.trim()
     if (!trimmed && (!props.sessionID || store.mode === "shell" || delivery === "queue"))
       return delivery === "steer" ? (await props.onEmptySubmit?.()) === true : false

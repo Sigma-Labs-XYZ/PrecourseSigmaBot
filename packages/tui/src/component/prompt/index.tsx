@@ -34,7 +34,7 @@ import { emptyPrompt, usePromptHistory, type PromptInfo, type PromptPartRef } fr
 import { saveDraft, takeDraft } from "./draft-stash"
 import { Skill } from "@opencode/schema/skill"
 import { computePromptTraits } from "../../prompt/traits"
-import { expandPastedTextPlaceholders, expandTrackedPastedText } from "../../prompt/part"
+import { expandPastedTextPlaceholders, expandTrackedPastedText, removeVenvActivateLines } from "../../prompt/part"
 import { usePromptStash } from "../../prompt/stash"
 import { DialogStash } from "../dialog-stash"
 import { type AutocompleteOption, type AutocompleteRef, Autocomplete } from "./autocomplete"
@@ -143,10 +143,6 @@ export function PromptInterruptStatus(props: {
     </text>
   )
 }
-
-// A whole line like `source /path/.venv/bin/activate`, optionally quoted, indented,
-// or using a shell-specific activate script.
-const VENV_ACTIVATE_LINE = /^\s*source\s+(["']?)[^"'\n]*\/(?:bin|Scripts)\/activate(?:\.(?:fish|csh|nu))?\1\s*$/
 
 function hasEditorRangeSelection(selection: EditorSelection["ranges"][number]) {
   return (
@@ -1134,22 +1130,19 @@ export function Prompt(props: PromptProps) {
     if (!trimmed && (!props.sessionID || store.mode === "shell" || delivery === "queue"))
       return delivery === "steer" ? (await props.onEmptySubmit?.()) === true : false
     const exitWord = trimmed === "exit" || trimmed === "quit" || trimmed === ":q"
-    const inputText = expandTrackedPastedText(
-      store.prompt.text,
-      input.extmarks.getAllForTypeId(promptPartTypeId).flatMap((extmark) => {
-        const ref = store.extmarkToPart.get(extmark.id)
-        if (ref?.type !== "pasted") return []
-        const part = store.prompt.pasted[ref.index]
-        if (!part) return []
-        return [{ start: extmark.start, end: extmark.end, text: part.text }]
-      }),
-      renderer.widthMethod,
+    const inputText = removeVenvActivateLines(
+      expandTrackedPastedText(
+        store.prompt.text,
+        input.extmarks.getAllForTypeId(promptPartTypeId).flatMap((extmark) => {
+          const ref = store.extmarkToPart.get(extmark.id)
+          if (ref?.type !== "pasted") return []
+          const part = store.prompt.pasted[ref.index]
+          if (!part) return []
+          return [{ start: extmark.start, end: extmark.end, text: part.text }]
+        }),
+        renderer.widthMethod,
+      ),
     )
-      // Editors such as VS Code type a virtualenv activation command into a freshly
-      // opened terminal, which lands in the composer. Never send those lines.
-      .split("\n")
-      .filter((line) => !VENV_ACTIVATE_LINE.test(line))
-      .join("\n")
     if (!inputText.trim()) {
       resetComposer()
       return true

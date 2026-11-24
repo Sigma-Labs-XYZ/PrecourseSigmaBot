@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test"
 import { measureEditText } from "@opentui/core"
-import { expandPastedTextPlaceholders, expandTrackedPastedText } from "../../src/prompt/part"
+import { expandPastedTextPlaceholders, expandTrackedPastedText, removeVenvActivateLines } from "../../src/prompt/part"
 
 const widthMethod = "wcwidth"
 const measure = (text: string) => measureEditText(text, { widthMethod })
@@ -37,4 +37,23 @@ test("expands clipboard placeholders literally in document order without re-matc
       { text: first, source: { text: "[Pasted ~3 lines]", start: 7 } },
     ]),
   ).toBe(`prefix ${first} middle ${second} suffix`)
+})
+
+test.each([
+  ["source /Users/laibaalam/Coursework-Fundamentals-Week-1/.venv/bin/activate", ""],
+  [" source /Users/laibaalam/Coursework-Fundamentals-Week-1/.venv/bin/activate", ""],
+  ['source "/Users/a b/.venv/bin/activate"\nhello', "hello"],
+  ["first\n\tsource /x/venv/bin/activate.fish\nsecond", "first\nsecond"],
+  ["hello\nsource /x/.venv/bin/activate", "hello"],
+])("removes virtualenv activate lines from %j", (text, expected) => {
+  expect(removeVenvActivateLines(text)).toBe(expected)
+})
+
+test.each([
+  "source /x/.venv/bin/activate && ls",
+  "source code is great",
+  "how do I run source /x/.venv/bin/activate?",
+  'source "/x/.venv/bin/activate',
+])("keeps %j", (text) => {
+  expect(removeVenvActivateLines(text)).toBe(text)
 })

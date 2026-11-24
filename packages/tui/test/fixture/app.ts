@@ -18,6 +18,7 @@ export async function createAppFixture(
     // A renderer whose owner already set up its terminal, such as the simulation renderer.
     setup?: TestRendererSetup
     signIn?: TuiInput["signIn"]
+    updater?: TuiInput["updater"]
   } = {},
 ) {
   const { run } = await import("../../src/app")
@@ -55,6 +56,7 @@ export async function createAppFixture(
       args: input.args ?? {},
       log: () => {},
       signIn: input.signIn,
+      updater: input.updater,
     }).pipe(
       Effect.provide(
         Global.layerWith({

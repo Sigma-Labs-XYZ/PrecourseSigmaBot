@@ -1,4 +1,4 @@
-import { createSignal, onCleanup, onMount } from "solid-js"
+import { createEffect, createSignal, onCleanup, onMount, untrack } from "solid-js"
 import { createSimpleContext } from "./helper"
 import { useLog } from "./log"
 import { useStorage } from "./storage"
@@ -40,20 +40,28 @@ export const { use: useUpdateNotification, provider: UpdateNotificationProvider 
       initial: { versions: [] },
     })
 
+    // Versions already auto-prompted in this process, so periodic checks don't reopen the dialog.
+    const prompted = new Set<string>()
+    const [pending, setPending] = createSignal<string>()
+
     const notify = (notice: Notice) => {
       if (!props.updater) return
+      const local = !(notice.source === "server" && notice.remote)
       // Every way out of the TUI after a local install tells the user to start the new version.
-      if (notice.type === "installed" && !(notice.source === "server" && notice.remote))
-        epilogue.updatedVersion(notice.version)
+      if (notice.type === "installed" && local) epilogue.updatedVersion(notice.version)
+      // Available local updates prompt on every launch until installed, even if previously skipped.
+      const required = notice.type === "available" && local
       if (
-        notifications.versions.includes(`${notice.source}:${notice.version}`) ||
-        (notice.source === "client" && notifications.versions.includes(notice.version))
+        !required &&
+        (notifications.versions.includes(`${notice.source}:${notice.version}`) ||
+          (notice.source === "client" && notifications.versions.includes(notice.version)))
       )
         return
       setNotification((current) => {
         if (notice.source === "server" && current?.source === "client") return current
         return notice
       })
+      if (required && !prompted.has(notice.version)) setPending(notice.version)
     }
 
     const dismiss = () => {
@@ -122,6 +130,15 @@ export const { use: useUpdateNotification, provider: UpdateNotificationProvider 
         />
       ))
     }
+
+    // Wait for other dialogs (sign-in, forms) to close before prompting.
+    createEffect(() => {
+      const version = pending()
+      if (!version || dialog.stack.length > 0) return
+      prompted.add(version)
+      setPending(undefined)
+      untrack(() => open("notification"))
+    })
 
     onMount(() => {
       if (!props.updater) return

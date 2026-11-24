@@ -136,9 +136,14 @@ export function DialogUpdate(props: {
               <Spinner shimmer={theme.text.base}>Checking for updates…</Spinner>
             </Match>
             <Match when={current.type === "available"}>
-              <text fg={theme.text.muted}>
-                An update is available. After installing, you'll be prompted to restart SigmaBot.
-              </text>
+              <box gap={1}>
+                <text fg={theme.text.base} wrapMode="word">
+                  {`SigmaBot ${current.type === "available" ? current.version : ""} is available. It's important to upgrade so you have the latest course content, fixes and improvements.`}
+                </text>
+                <text fg={theme.text.muted} wrapMode="word">
+                  After installing, you'll be prompted to restart SigmaBot.
+                </text>
+              </box>
             </Match>
             <Match when={current.type === "installing"}>
               <Spinner shimmer={theme.text.base}>

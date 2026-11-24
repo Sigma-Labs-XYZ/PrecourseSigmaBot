@@ -2,6 +2,8 @@
 import { testRender } from "@opentui/solid"
 import { expect, test } from "bun:test"
 import { createSignal } from "solid-js"
+import { mkdir } from "node:fs/promises"
+import path from "node:path"
 import { DialogUpdate } from "../../src/component/dialog-update"
 import { ConfigProvider } from "../../src/config"
 import type { UpdateState } from "../../src/context/update-notification"
@@ -12,6 +14,7 @@ import { ToastProvider } from "../../src/ui/toast"
 import { emptyThemeSource, tmpdir } from "../fixture/fixture"
 import { TestTuiContexts } from "../fixture/tui-environment"
 import { createTuiResolvedConfig } from "../fixture/tui-runtime"
+import { createAppFixture } from "../fixture/app"
 
 test("installation progress replaces checking while the update job is still pending", async () => {
   await using temporary = await tmpdir()
@@ -59,4 +62,28 @@ test("installation progress replaces checking while the update job is still pend
     pending.resolve(undefined)
     app.renderer.destroy()
   }
+})
+
+test("an available update opens the upgrade prompt on launch even after it was skipped", async () => {
+  await using state = await tmpdir()
+  // A previous launch skipped this version.
+  await mkdir(path.join(state.path, "test", "tui"), { recursive: true })
+  await Bun.write(
+    path.join(state.path, "test", "tui", "update-notifications.json"),
+    JSON.stringify({ versions: ["client:2.0.0"] }),
+  )
+  await using setup = await createAppFixture({
+    state: state.path,
+    updater: {
+      remote: false,
+      subscribe: (notify) => {
+        notify({ type: "available", version: "2.0.0" })
+        return () => {}
+      },
+      check: async () => undefined,
+      apply: async () => {},
+    },
+  })
+  await setup.ready
+  await setup.waitForFrame((frame) => frame.includes("SigmaBot 2.0.0 is available") && frame.includes("important to"))
 })

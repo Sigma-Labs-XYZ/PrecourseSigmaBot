@@ -144,6 +144,10 @@ export function PromptInterruptStatus(props: {
   )
 }
 
+// A whole line like `source /path/.venv/bin/activate`, optionally quoted, indented,
+// or using a shell-specific activate script.
+const VENV_ACTIVATE_LINE = /^\s*source\s+(["']?)[^"'\n]*\/(?:bin|Scripts)\/activate(?:\.(?:fish|csh|nu))?\1\s*$/
+
 function hasEditorRangeSelection(selection: EditorSelection["ranges"][number]) {
   return (
     selection.selection.start.line !== selection.selection.end.line ||
@@ -1126,18 +1130,6 @@ export function Prompt(props: PromptProps) {
     }
     if (move.creating()) return false
     if (auto()?.visible) return false
-    // Editors such as VS Code type a virtualenv `source .../activate` command into a
-    // freshly opened terminal, which lands in the composer as the first chat line.
-    if (!props.sessionID && /^source\s/.test(store.prompt.text.trimStart())) {
-      const rest = store.prompt.text.trimStart().replace(/^[^\n]*\n?/, "")
-      if (!rest.trim()) {
-        resetComposer()
-        return true
-      }
-      input.setText(rest)
-      setStore("prompt", "text", rest)
-      syncExtmarksWithPromptParts()
-    }
     const trimmed = store.prompt.text.trim()
     if (!trimmed && (!props.sessionID || store.mode === "shell" || delivery === "queue"))
       return delivery === "steer" ? (await props.onEmptySubmit?.()) === true : false
@@ -1153,6 +1145,15 @@ export function Prompt(props: PromptProps) {
       }),
       renderer.widthMethod,
     )
+      // Editors such as VS Code type a virtualenv activation command into a freshly
+      // opened terminal, which lands in the composer. Never send those lines.
+      .split("\n")
+      .filter((line) => !VENV_ACTIVATE_LINE.test(line))
+      .join("\n")
+    if (!inputText.trim()) {
+      resetComposer()
+      return true
+    }
     const slash = argumentSlash(inputText, keymapCommands())
     if (delivery === "queue" && (store.mode === "shell" || exitWord || slash)) {
       toast.show({ message: "This prompt cannot be queued", variant: "warning" })

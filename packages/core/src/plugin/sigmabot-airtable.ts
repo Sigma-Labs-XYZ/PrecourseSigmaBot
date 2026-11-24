@@ -37,6 +37,32 @@ export const COURSE_DESTINATION: Destination = {
   transcripts: "tbldkYJbRYPAelZOy",
 }
 
+/** The base for the c28 cohort: the same tables as the course base, in their own base. */
+export const C28_DESTINATION: Destination = { ...COURSE_DESTINATION, base: "appmAuwrEDElRjkbV" }
+
+const C28_TRAINEES = new Set([
+  "trainee.angelo.poponne@sigmalabs.co.uk",
+  "trainee.arun.jandu@sigmalabs.co.uk",
+  "trainee.dennis.chan@sigmalabs.co.uk",
+  "trainee.dharma.rumpal@sigmalabs.co.uk",
+  "trainee.ishwari.kotecha@sigmalabs.co.uk",
+  "trainee.jacob.price@sigmalabs.co.uk",
+  "trainee.jenny.nguyen@sigmalabs.co.uk",
+  "trainee.kamal.ferchiche@sigmalabs.co.uk",
+  "trainee.laiba.alam@sigmalabs.co.uk",
+  "trainee.lanikah.patel@sigmalabs.co.uk",
+  "trainee.lee.monkhouse@sigmalabs.co.uk",
+  "trainee.mubs.dadipatel@sigmalabs.co.uk",
+  "trainee.nusrat.halim@sigmalabs.co.uk",
+  "trainee.parth.pankhania@sigmalabs.co.uk",
+  "trainee.rikesh.selvakumar@sigmalabs.co.uk",
+  "trainee.sebastian.marceliano@sigmalabs.co.uk",
+  "trainee.sophia.powell@sigmalabs.co.uk",
+  "trainee.thomas.kaddish@sigmalabs.co.uk",
+  "trainee.wiktoria.bielecka@sigmalabs.co.uk",
+  "trainee.yaren.sahin@sigmalabs.co.uk",
+])
+
 const COURSE_TRAINEES = new Set([
   "trainee.aqlima.firdous@sigmalabs.co.uk",
   "trainee.ben.smallbone@sigmalabs.co.uk",
@@ -58,9 +84,11 @@ const COURSE_TRAINEES = new Set([
   "trainee.yasmin.ali@sigmalabs.co.uk",
 ])
 
-/** The course base for the trainees listed above, the original base for everyone else. */
+/** The c28 base for c28 trainees, the course base for the trainees listed above, the original base for everyone else. */
 export function destination(email: string) {
-  return COURSE_TRAINEES.has(email.trim().toLowerCase()) ? COURSE_DESTINATION : DEFAULT_DESTINATION
+  const key = email.trim().toLowerCase()
+  if (C28_TRAINEES.has(key)) return C28_DESTINATION
+  return COURSE_TRAINEES.has(key) ? COURSE_DESTINATION : DEFAULT_DESTINATION
 }
 
 export const ENDPOINT = "https://api.airtable.com"

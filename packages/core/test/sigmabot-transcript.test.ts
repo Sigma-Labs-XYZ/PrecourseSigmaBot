@@ -313,6 +313,18 @@ describe("SigmaBotTranscript.make", () => {
     }),
   )
 
+  it.effect("sends c28 trainees to the c28 base", () =>
+    Effect.sync(() => {
+      expect(SigmaBotAirtable.destination("Trainee.Jacob.Price@sigmalabs.co.uk")).toBe(SigmaBotAirtable.C28_DESTINATION)
+      expect(SigmaBotAirtable.C28_DESTINATION).toEqual({
+        base: "appmAuwrEDElRjkbV",
+        trainees: "tbl0VtH8F7WZ1czuC",
+        emailField: "Email",
+        transcripts: "tbldkYJbRYPAelZOy",
+      })
+    }),
+  )
+
   it.live("still backs up when the email has no Trainees row", () =>
     use({}, (fake) =>
       Effect.gen(function* () {

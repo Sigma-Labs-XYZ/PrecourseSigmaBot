@@ -15,7 +15,7 @@ const views = new Map<string, { resolveWebviewView(view: unknown): void }>()
 
 mock.module("vscode", () => ({
   TabInputText,
-  ViewColumn: { Beside: -2 },
+  TerminalLocation: { Panel: 1 },
   StatusBarAlignment: { Left: 1 },
   Uri: { joinPath: (base: { path: string }, ...segments: string[]) => ({ path: [base.path, ...segments].join("/") }) },
   commands: { registerCommand: never },

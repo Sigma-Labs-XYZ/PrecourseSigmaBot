@@ -3,6 +3,7 @@
 ## Unreleased
 
 - New SigmaBot icon in the status bar, editor title, activity bar and terminal tab, plus a new description and Marketplace page.
+- SigmaBot now opens in the Terminal view alongside Chat, instead of a locked editor group beside your code.
 
 ## 0.1.0
 

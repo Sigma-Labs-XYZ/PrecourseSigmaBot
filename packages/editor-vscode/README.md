@@ -5,13 +5,13 @@ SigmaBot is Sigma Labs' AI tutor. It teaches you coding concepts and best practi
 ## Get started
 
 1. Open the **SigmaBot** view in the activity bar, or run **SigmaBot: Install CLI** from the Command Palette, and confirm the install command.
-2. When the install finishes, click **SigmaBot** in the status bar (or run **SigmaBot: Open**). SigmaBot opens in a terminal beside your editor.
+2. When the install finishes, click **SigmaBot** in the status bar (or run **SigmaBot: Open**). SigmaBot opens as a tab in the Terminal view, alongside Chat.
 3. Sign in with your `@sigmalabs.co.uk` email. Follow the link and code shown in the terminal.
 4. Ask it anything about your code. If you are stuck it will help you work it out, and it can help you set up anything you need.
 
 ## What it does
 
-- **Launches SigmaBot in VS Code.** A status bar button, an editor title button and the activity bar view all open SigmaBot in a terminal beside your editor. If the CLI is missing, the extension offers to install it.
+- **Launches SigmaBot in VS Code.** A status bar button, an editor title button and the activity bar view all open SigmaBot as a tab in the Terminal view, alongside Chat and your other terminals. If the CLI is missing, the extension offers to install it.
 - **Shares your editor with SigmaBot.** SigmaBot knows which file you have open, what you have selected and which tabs are open, so "what does this do?" and "why is this failing?" just work.
 - **Gives you three coaches.** Press `Shift` + `Tab` in SigmaBot to switch between them:
   - **Tutor** (default) explains concepts and guides you through exercises and bugs with hints, so you learn to solve them yourself.
@@ -22,7 +22,7 @@ SigmaBot is Sigma Labs' AI tutor. It teaches you coding concepts and best practi
 
 | Command                 | Description                                                  |
 | ----------------------- | ------------------------------------------------------------ |
-| `SigmaBot: Open`        | Open SigmaBot in a terminal beside your editor.              |
+| `SigmaBot: Open`        | Open SigmaBot in the Terminal view.                          |
 | `SigmaBot: Install CLI` | Run the SigmaBot installer in a terminal, after you confirm. |
 
 ## Settings

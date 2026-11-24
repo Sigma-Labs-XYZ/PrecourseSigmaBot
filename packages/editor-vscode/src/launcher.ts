@@ -4,8 +4,8 @@ import { join } from "node:path"
 import {
   commands,
   StatusBarAlignment,
+  TerminalLocation,
   Uri,
-  ViewColumn,
   window,
   workspace,
   type ExtensionContext,
@@ -112,7 +112,12 @@ function welcomeHtml(webview: Webview, logo: Uri) {
 
 async function open(context: ExtensionContext) {
   const existing = window.terminals.find((terminal) => terminal.name === TERMINAL_NAME)
-  if (existing) return existing.show()
+  if (existing) {
+    // A SigmaBot terminal restored from an older version may still sit in a locked editor group; this is a no-op
+    // when it is already in the Terminal view.
+    existing.show()
+    return commands.executeCommand("workbench.action.terminal.moveToTerminalPanel")
+  }
 
   const binary = await findBinary()
   if (!binary) {
@@ -127,7 +132,7 @@ async function open(context: ExtensionContext) {
       iconPath: Uri.joinPath(context.extensionUri, "media", "sigmabot-color.svg"),
       shellPath: binary,
       cwd: workspace.workspaceFolders?.[0]?.uri.fsPath,
-      location: { viewColumn: ViewColumn.Beside },
+      location: TerminalLocation.Panel,
     })
     .show()
 }

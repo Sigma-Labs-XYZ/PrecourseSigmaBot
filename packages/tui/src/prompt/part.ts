@@ -17,12 +17,13 @@ export function expandPastedTextPlaceholders(
 }
 
 // Editors such as VS Code type a virtualenv activation command into a freshly opened
-// terminal, which lands in the composer. Those lines must never be sent.
+// terminal, which lands in the composer. It must never be sent, wherever it appears.
+const VENV_ACTIVATE =
+  /\s*\bsource\s+(?:"[^"\n]*\/(?:bin|Scripts)\/activate(?:\.(?:fish|csh|nu))?"|'[^'\n]*\/(?:bin|Scripts)\/activate(?:\.(?:fish|csh|nu))?'|[^\s"']*\/(?:bin|Scripts)\/activate(?:\.(?:fish|csh|nu))?)(?=\s|$)/g
+
 export function removeVenvActivateLines(text: string) {
-  return text
-    .split("\n")
-    .filter((line) => !/^\s*source\s+(["']?)[^"'\n]*\/(?:bin|Scripts)\/activate(?:\.(?:fish|csh|nu))?\1\s*$/.test(line))
-    .join("\n")
+  const result = text.replace(VENV_ACTIVATE, "")
+  return result === text ? text : result.trim()
 }
 
 export function expandTrackedPastedText(

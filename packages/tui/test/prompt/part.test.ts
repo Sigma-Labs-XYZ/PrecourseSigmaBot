@@ -45,15 +45,15 @@ test.each([
   ['source "/Users/a b/.venv/bin/activate"\nhello', "hello"],
   ["first\n\tsource /x/venv/bin/activate.fish\nsecond", "first\nsecond"],
   ["hello\nsource /x/.venv/bin/activate", "hello"],
+  ["hello source /x/.venv/bin/activate world", "hello world"],
+  ["source /x/.venv/bin/activate && ls", "&& ls"],
 ])("removes virtualenv activate lines from %j", (text, expected) => {
   expect(removeVenvActivateLines(text)).toBe(expected)
 })
 
-test.each([
-  "source /x/.venv/bin/activate && ls",
-  "source code is great",
-  "how do I run source /x/.venv/bin/activate?",
-  'source "/x/.venv/bin/activate',
-])("keeps %j", (text) => {
-  expect(removeVenvActivateLines(text)).toBe(text)
-})
+test.each(["source code is great", "how do I run source /x/.venv/bin/activate?", 'source "/x/.venv/bin/activate'])(
+  "keeps %j",
+  (text) => {
+    expect(removeVenvActivateLines(text)).toBe(text)
+  },
+)

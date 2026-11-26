@@ -140,6 +140,7 @@ describe("SigmaBotTranscript.make", () => {
           remote: SigmaBotAirtable.transcripts(http, {
             token: "pat123",
             email: signedIn,
+            version: "1.2.3",
             endpoint: fake.endpoint,
           }),
         })
@@ -156,6 +157,7 @@ describe("SigmaBotTranscript.make", () => {
           Trainee: ["recTrainee1"],
           Transcript: "You:\nhello",
           Status: "Open",
+          Version: "1.2.3",
         })
         expect(fake.rows.get("ses_a")!.fields["Last Synced"]).toBeString()
 

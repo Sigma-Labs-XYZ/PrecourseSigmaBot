@@ -14,6 +14,8 @@ import { SigmaBotTranscript } from "./sigmabot-transcript.js"
 
 // Injected by the CLI build from SIGMABOT_AIRTABLE_KEY, like the one the /submit plugin uses.
 declare const SIGMABOT_AIRTABLE_KEY: string | undefined
+// Injected by the CLI build; absent when running from source.
+declare const OPENCODE_VERSION: string | undefined
 
 const INTERVAL = Duration.minutes(15)
 // A last backup on the way out must not hold up quitting.
@@ -38,7 +40,11 @@ export const Plugin = define({
 
     const sync = SigmaBotTranscript.make({
       storage: ctx.storage,
-      remote: SigmaBotAirtable.transcripts(http, { token, email: SigmaBotAccount.email() }),
+      remote: SigmaBotAirtable.transcripts(http, {
+        token,
+        email: SigmaBotAccount.email(),
+        version: typeof OPENCODE_VERSION === "string" ? OPENCODE_VERSION : "local",
+      }),
       source: source(sessions, location.directory),
     })
     // The timer, a close, and the final flush can overlap; one backup at a time keeps them from racing.

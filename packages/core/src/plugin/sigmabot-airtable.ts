@@ -259,7 +259,7 @@ const BATCH = 10
  */
 export function transcripts(
   http: HttpClient.HttpClient,
-  input: { readonly token: string; readonly email: Email; readonly endpoint?: string },
+  input: { readonly token: string; readonly email: Email; readonly version?: string; readonly endpoint?: string },
 ) {
   const { client, host, authorized, run, traineeID } = connect(http, input)
 
@@ -286,6 +286,8 @@ export function transcripts(
                       Transcript: row.transcript,
                       Status: row.closed ? "Closed" : "Open",
                       "Last Synced": row.syncedAt,
+                      // The SigmaBot release that last synced this chat, rewritten on every update.
+                      ...(input.version ? { Version: input.version } : {}),
                     },
                   })),
                 }),

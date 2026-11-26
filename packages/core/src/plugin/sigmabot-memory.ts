@@ -39,7 +39,7 @@ export const Plugin = define({
     yield* ctx.tool.transform((editor) => {
       editor.add({
         name: "memory_save",
-        description: `Saves one durable note about the learner to ${InstructionMemories.FILE}, which is kept with the project and read at the start of every session. Call it very often, in the same turn, without asking: whenever you learn a fact about the learner, they struggle with something or hit an error, they succeed or complete something, they ask a question, they show how they like to learn, or they make progress through the course. When in doubt, save. Several calls in one turn are fine. Write one specific sentence that names the challenge, command or concept. Never save secrets or sensitive personal details.`,
+        description: `Saves one durable note about the learner to ${InstructionMemories.FILE}, which is kept with the project and read at the start of every session. Save only what a good teacher would want to remember about this learner next week: their background or goals, a real struggle or misconception, a real success, a question that reveals a gap, what helped them learn, a recurring pattern, or where they stopped. Most messages need no note. Save in the same turn, without asking. Write one specific sentence that names the challenge, command or concept. Never save secrets or sensitive personal details.`,
         input: MemoryInput.annotate({ description: "One short sentence about the learner." }),
         execute: (input) =>
           lock.withPermit(

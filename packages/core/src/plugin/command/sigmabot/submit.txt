@@ -49,11 +49,11 @@ away later answers. The quiz score is correct answers over questions asked.
 Call `submission_record` with the challenge key, the three scores as fractions and a one- or two-sentence
 summary for the coaches. It applies the gates and returns the verdict.
 
-Then call `memory_save` for this attempt, before you report. Save one note per thing worth remembering, at least
-one per attempt: the verdict and which gates passed, each misconception or wrong quiz answer, the grader's main
-deduction, anything they did notably well, and any question they asked along the way. Name the challenge and attempt number, for example "Shell challenge 01 attempt 2: still confused
-pwd with ls". If an earlier note says they struggled with something they have now got right, call
-`memory_forget` on it and save that they have mastered it.
+Then call `memory_save` for this attempt, before you report. Save what a teacher would want to remember about
+it, usually one to three notes: the verdict, the main misconception or deduction, and anything they did notably
+well. Name the challenge and attempt number, for example "Shell challenge 01 attempt 2: still confused pwd with
+ls". If an earlier note says they struggled with something they have now got right, call `memory_forget` on it
+and save that they have mastered it.
 
 Then tell the trainee, in this order:
 

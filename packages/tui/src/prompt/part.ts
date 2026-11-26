@@ -18,11 +18,14 @@ export function expandPastedTextPlaceholders(
 
 // Editors such as VS Code type a virtualenv activation command into a freshly opened
 // terminal, which lands in the composer. It must never be sent, wherever it appears.
+// The injected text can land mid-typing, so the learner's next keystroke may follow
+// `activate` directly (e.g. `.../bin/activateI`); no word boundary is required after it.
 const VENV_ACTIVATE =
-  /\s*\bsource\s+(?:"[^"\n]*\/(?:bin|Scripts)\/activate(?:\.(?:fish|csh|nu))?"|'[^'\n]*\/(?:bin|Scripts)\/activate(?:\.(?:fish|csh|nu))?'|[^\s"']*\/(?:bin|Scripts)\/activate(?:\.(?:fish|csh|nu))?)(?=\s|$)/g
+  /\s*\bsource\s+(?:"[^"\n]*\/(?:bin|Scripts)\/activate(?:\.(?:fish|csh|nu))?"|'[^'\n]*\/(?:bin|Scripts)\/activate(?:\.(?:fish|csh|nu))?'|[^\s"']*\/(?:bin|Scripts)\/activate(?:\.(?:fish|csh|nu))?)\s*/g
 
 export function removeVenvActivateLines(text: string) {
-  const result = text.replace(VENV_ACTIVATE, "")
+  // Keep a line break if the command spanned one, otherwise rejoin the surrounding words with a space.
+  const result = text.replace(VENV_ACTIVATE, (match) => (match.includes("\n") ? "\n" : " "))
   return result === text ? text : result.trim()
 }
 
